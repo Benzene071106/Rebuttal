@@ -26,11 +26,12 @@ export function defaultMode(): Mode {
 }
 
 // Code running outside a request (a PayPal webhook, a script) acts as the server
-// itself: the shared state in the default mode.
-const SERVER: Visitor = { id: "server", mode: defaultMode() };
+// itself: the shared state in the default mode. Decided on first use, not at import,
+// so the environment (PAYPAL_MODE in tests and scripts) is read when it is final.
+let server: Visitor | undefined;
 
 export function visitor(): Visitor {
-  return als.getStore() ?? SERVER;
+  return als.getStore() ?? (server ??= { id: "server", mode: defaultMode() });
 }
 
 export function runAs<T>(v: Visitor, fn: () => T): T {

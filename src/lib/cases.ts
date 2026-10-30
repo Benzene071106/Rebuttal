@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { outcomeFor } from "./actions";
 import { paypal } from "./paypal";
-import type { CaseRecord, CaseStatus, Dispute } from "./types";
+import type { ActivityItem, CaseRecord, CaseStatus, Dispute } from "./types";
 import { lruGet, visitor } from "./visitor";
 
 const FILE = path.join(process.cwd(), "data", "cases.json");
@@ -77,21 +77,48 @@ export function updateCase(id: string, patch: Partial<CaseRecord> & { status?: C
   return next;
 }
 
+// Adds a seller-facing alert to the case; the inbox shows the newest across all cases.
+export function addActivity(id: string, text: string, tone: ActivityItem["tone"] = "info"): CaseRecord | undefined {
+  const c = getCase(id);
+  if (!c) return undefined;
+  return updateCase(id, { activity: [...(c.activity ?? []), { at: new Date().toISOString(), text, tone }].slice(-20) });
+}
+
 export function resetCases() {
   if (paypal().mode === "mock") g.__rebuttalCases?.mock.delete(visitor().id);
   else if (g.__rebuttalCases) g.__rebuttalCases.sandbox = new Map();
   persist();
 }
 
+// Manual effort per dispute (pull tracking and order details, read the messages, write
+// the response), and what is left when the agent has prepared it and the seller only
+// reviews. Estimates, shown as such in the inbox.
+export const MANUAL_MINUTES = 45;
+export const REVIEW_MINUTES = 5;
+
 export function stats(cases: CaseRecord[]) {
   const amt = (c: CaseRecord) => Number(c.dispute.dispute_amount.value);
   const open = cases.filter((c) => !c.outcome);
   const decided = cases.filter((c) => c.outcome);
+  const answered = cases.filter((c) => c.submitted);
+  const auto = answered.filter((c) => c.submitted?.by === "autopilot");
+  const dueSoon = open.filter((c) => {
+    if (c.submitted || !c.dispute.seller_response_due_date) return false;
+    return Date.parse(c.dispute.seller_response_due_date) - Date.now() <= 3 * 86_400_000;
+  });
+  const minutesSaved = auto.length * MANUAL_MINUTES + (answered.length - auto.length) * (MANUAL_MINUTES - REVIEW_MINUTES);
   return {
     open: open.length,
     at_risk: open.reduce((s, c) => s + amt(c), 0),
     kept: decided.reduce((s, c) => s + (c.outcome?.amount_kept ?? 0), 0),
     won: decided.filter((c) => c.outcome?.result === "WON").length,
     decided: decided.length,
+    // PayPal rulings only: refunds and accepted offers aren't wins or losses.
+    rulings: decided.filter((c) => c.outcome?.result === "WON" || c.outcome?.result === "LOST").length,
+    answered: answered.length,
+    autopilot: auto.length,
+    hours_saved: Math.round((minutesSaved / 60) * 10) / 10,
+    due_soon: dueSoon.length,
+    due_soon_amount: dueSoon.reduce((s, c) => s + amt(c), 0),
   };
 }

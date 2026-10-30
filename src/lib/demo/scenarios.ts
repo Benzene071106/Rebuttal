@@ -35,6 +35,8 @@ export type Scenario = {
   store: Omit<StoreRecord, "invoice_id">;
   buyer_prior_purchases: number;
   tracker_status: "SHIPPED" | "DELIVERED" | null;
+  // Days left for the seller to respond when the simulator files the dispute.
+  due_in_days: number;
 };
 
 const daysAgo = (d: number, h = 10) => {
@@ -55,6 +57,7 @@ export const SHOP = {
 export const SCENARIOS: Scenario[] = [
   {
     key: "JK-1042",
+    due_in_days: 3,
     title: "Delivered with signature, buyer says it never arrived",
     reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
     stage: "CHARGEBACK",
@@ -96,6 +99,7 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     key: "JK-1057",
+    due_in_days: 9,
     title: "Mug arrived chipped, buyer wants a full refund",
     reason: "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
     stage: "INQUIRY",
@@ -135,35 +139,8 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    key: "JK-1063",
-    title: "Untracked print never arrived",
-    reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
-    stage: "INQUIRY",
-    amount: "28.00",
-    buyer: { name: "Marcus Lee", email: "marcus.lee@example.com", payer_id: "QX7BUYER1063", address: "2210 Pine St, Seattle, WA 98101" },
-    item: { id: "PRT-RIVER-A4", name: "Risograph print 'River at Dusk', A4", qty: 1 },
-    buyer_messages_in_dispute: ["It's been three weeks and the print hasn't come."],
-    order_age_days: 24,
-    buyer_prior_purchases: 0,
-    tracker_status: null,
-    store: {
-      listing: { title: "Risograph print 'River at Dusk', A4", description: "Two-color risograph on 100lb paper. Ships flat in a rigid mailer.", photos: ["print"] },
-      customer_messages: [],
-      fulfillment: {
-        shipped_at: daysAgo(22),
-        carrier: "USPS",
-        tracking_number: null,
-        service: "USPS First-Class letter (no tracking)",
-        signature_required: false,
-        signed_by: null,
-        carrier_events: [],
-        packing_photo: false,
-      },
-      policies: { returns: SHOP.returns, shipping: SHOP.shipping },
-    },
-  },
-  {
     key: "JK-1071",
+    due_in_days: 2,
     title: "'Unauthorized' charge from a repeat customer",
     reason: "UNAUTHORISED",
     stage: "CHARGEBACK",
@@ -193,6 +170,35 @@ export const SCENARIOS: Scenario[] = [
           { at: daysAgo(25, 13), status: "Delivered, signed by E ORTIZ", location: "Portland, ME 04101" },
         ],
         packing_photo: true,
+      },
+      policies: { returns: SHOP.returns, shipping: SHOP.shipping },
+    },
+  },
+  {
+    key: "JK-1063",
+    due_in_days: 12,
+    title: "Untracked print never arrived",
+    reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+    stage: "INQUIRY",
+    amount: "28.00",
+    buyer: { name: "Marcus Lee", email: "marcus.lee@example.com", payer_id: "QX7BUYER1063", address: "2210 Pine St, Seattle, WA 98101" },
+    item: { id: "PRT-RIVER-A4", name: "Risograph print 'River at Dusk', A4", qty: 1 },
+    buyer_messages_in_dispute: ["It's been three weeks and the print hasn't come."],
+    order_age_days: 24,
+    buyer_prior_purchases: 0,
+    tracker_status: null,
+    store: {
+      listing: { title: "Risograph print 'River at Dusk', A4", description: "Two-color risograph on 100lb paper. Ships flat in a rigid mailer.", photos: ["print"] },
+      customer_messages: [],
+      fulfillment: {
+        shipped_at: daysAgo(22),
+        carrier: "USPS",
+        tracking_number: null,
+        service: "USPS First-Class letter (no tracking)",
+        signature_required: false,
+        signed_by: null,
+        carrier_events: [],
+        packing_photo: false,
       },
       policies: { returns: SHOP.returns, shipping: SHOP.shipping },
     },

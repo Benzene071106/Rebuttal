@@ -37,3 +37,13 @@ export function statusLabel(c: CaseRecord): string {
     case "ERROR": return "Needs attention";
   }
 }
+
+// Triage order for open disputes: money at risk, weighted by how close the response
+// deadline is. PayPal decides for the buyer when the seller misses it.
+export function priorityOf(c: CaseRecord): { score: number; label: "Urgent" | "Soon" | null } {
+  if (c.outcome || c.submitted) return { score: -1, label: null };
+  const d = daysLeft(c.dispute.seller_response_due_date);
+  const amount = Number(c.dispute.dispute_amount.value);
+  const weight = d === null ? 1 : d <= 3 ? 4 : d <= 7 ? 2 : 1;
+  return { score: amount * weight, label: d === null ? null : d <= 3 ? "Urgent" : d <= 7 ? "Soon" : null };
+}

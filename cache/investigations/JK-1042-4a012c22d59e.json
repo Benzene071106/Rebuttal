@@ -1,32 +1,63 @@
 {
   "key": "JK-1042-4a012c22d59e",
   "dispute_id": "PP-D-27800",
-  "saved_at": "2026-10-07T16:15:15.380Z",
+  "saved_at": "2026-10-30T16:16:07.129Z",
   "model": "gemini:gemini-3.5-flash-lite",
   "recommendation": {
     "decision": "FIGHT",
     "win_probability": 0.95,
-    "headline": "Fight this chargeback with UPS delivery and signature confirmation showing the package was successfully delivered to the buyer's address and signed by WHITFIELD.",
-    "rationale": "The buyer claims they never received the bag, but UPS tracking confirms delivery to the exact shipping address on September 26, 2026, with a signature obtained from 'WHITFIELD'. Furthermore, the customer message history confirms the buyer tracked the package and knew it was out for delivery on that day. Win probability is extremely high.",
+    "headline": "FIGHT this chargeback as we have robust proof of delivery with signature confirmation and buyer communication acknowledging out-for-delivery status.",
+    "rationale": "The seller has complete documentation proving fulfillment and delivery. UPS tracking confirms delivery to the buyer's exact shipping address, and carrier records show a signature by 'WHITFIELD' at the front desk on October 19, 2026. Furthermore, customer messages show the buyer acknowledged the out-for-delivery notice on the same day. With delivery and signature fully verified, the win probability is very high.",
     "evidence": [
       {
+        "type": "PROOF_OF_FULFILLMENT",
+        "summary": "UPS tracking shows item delivered on 2026-10-19 at 418 Alder St, Denver, CO 80203, matching the order shipping address.",
+        "source": "get_store_records"
+      },
+      {
         "type": "PROOF_OF_DELIVERY_SIGNATURE",
-        "summary": "UPS carrier scan shows the package was delivered on September 26, 2026, at 418 Alder St, Denver, CO 80203, with signature confirmation signed by 'WHITFIELD'.",
+        "summary": "UPS delivery record confirms signature by WHITFIELD at the front desk.",
         "source": "get_store_records"
       },
       {
         "type": "OTHER",
-        "summary": "Customer message history shows the buyer acknowledged being out for delivery on September 26, 2026 ('Thanks, got the notice that it's out for delivery today').",
+        "summary": "Customer message history shows buyer acknowledged tracking on October 19 saying 'Thanks, got the notice that it's out for delivery today.'",
         "source": "get_store_records"
       }
     ],
-    "response_to_paypal": "The order was shipped via UPS Ground with signature confirmation (tracking number 1Z84A9E70347215522) to the buyer's confirmed shipping address at 418 Alder St, Apt 3, Denver, CO 80203. UPS records and carrier scans confirm the package was successfully delivered on September 26, 2026, and signed for by 'WHITFIELD'. In addition, direct messaging between the buyer and seller confirms the buyer was aware the package was out for delivery on the day it arrived.",
+    "response_to_paypal": "The order was shipped via UPS Ground with signature confirmation (Tracking: 1Z84A9E70347215522). According to UPS carrier records, the package was successfully delivered on October 19, 2026, at 418 Alder St, Denver, CO 80203, and signed for by WHITFIELD at the front desk. Additionally, the buyer confirmed in messages on October 19 that they received the notice that the package was out for delivery. We request that PayPal / the card issuer uphold this transaction.",
     "tracking_carrier": "UPS",
     "tracking_number": "1Z84A9E70347215522",
     "offer_amount": 0,
     "offer_type": "NONE",
     "risks": [
-      "The card issuer may still side with the cardholder if they claim an unauthorized signature, though carrier signature proof generally protects against item-not-received chargebacks."
+      "Card issuers can occasionally rule in favor of chargeback cardholders despite proof of delivery, though signature confirmation significantly mitigates this risk."
+    ],
+    "factors": [
+      {
+        "finding": "UPS tracking confirms delivery to the exact shipping address on the order (418 Alder St, Apt 3, Denver, CO 80203).",
+        "favors": "SELLER",
+        "weight": "HIGH",
+        "source": "get_store_records"
+      },
+      {
+        "finding": "Carrier delivery record includes signature confirmation signed by 'WHITFIELD' at the front desk.",
+        "favors": "SELLER",
+        "weight": "HIGH",
+        "source": "get_store_records"
+      },
+      {
+        "finding": "Buyer messaged on October 19 confirming they received notice that the package was out for delivery.",
+        "favors": "SELLER",
+        "weight": "MEDIUM",
+        "source": "get_store_records"
+      },
+      {
+        "finding": "Buyer states they never received the bag and nothing was at their door.",
+        "favors": "BUYER",
+        "weight": "LOW",
+        "source": "get_dispute"
+      }
     ]
   },
   "trace": [
@@ -37,7 +68,7 @@
         "dispute_id": "PP-D-27800"
       },
       "summary": "Dispute PP-D-27800: merchandise or service not received, $184.00, chargeback",
-      "at": "2026-10-07T16:15:11.916Z"
+      "at": "2026-10-30T16:16:01.845Z"
     },
     {
       "kind": "tool",
@@ -46,7 +77,7 @@
         "transaction_id": "SLQSLJJWWLCUY2NSE"
       },
       "summary": "1 transaction from this buyer",
-      "at": "2026-10-07T16:15:11.918Z"
+      "at": "2026-10-30T16:16:01.845Z"
     },
     {
       "kind": "tool",
@@ -55,7 +86,7 @@
         "invoice_id": "JK-1042"
       },
       "summary": "Shop records: 3 customer messages; last scan \"Delivered, signed by WHITFIELD, front desk\"",
-      "at": "2026-10-07T16:15:11.919Z"
+      "at": "2026-10-30T16:16:01.845Z"
     },
     {
       "kind": "tool",
@@ -64,7 +95,7 @@
         "id": "44AAS022S4CJGL8EL"
       },
       "summary": "Order 44AAS022S4CJGL8EL: Hand-stitched leather tote, tan, ships to Denver, CO",
-      "at": "2026-10-07T16:15:13.293Z"
+      "at": "2026-10-30T16:16:04.392Z"
     },
     {
       "kind": "tool",
@@ -74,12 +105,12 @@
         "order_id": "44AAS022S4CJGL8EL"
       },
       "summary": "PayPal tracker: UPS 1Z84A9E70347215522, status DELIVERED",
-      "at": "2026-10-07T16:15:13.294Z"
+      "at": "2026-10-30T16:16:04.392Z"
     },
     {
       "kind": "note",
       "summary": "Recommendation: FIGHT",
-      "at": "2026-10-07T16:15:15.379Z"
+      "at": "2026-10-30T16:16:07.129Z"
     }
   ]
 }

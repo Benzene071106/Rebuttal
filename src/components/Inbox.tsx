@@ -5,10 +5,14 @@ import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseRecord } from "@/lib/types";
-import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, REASON_LABEL, statusLabel } from "./format";
+import AutopilotPanel from "./AutopilotPanel";
+import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
 import { gridTheme } from "./grid";
 
-type Stats = { open: number; at_risk: number; kept: number; won: number; decided: number };
+type Stats = {
+  open: number; at_risk: number; kept: number; won: number; decided: number; rulings: number;
+  answered: number; autopilot: number; hours_saved: number; due_soon: number; due_soon_amount: number;
+};
 type Payload = { mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?: boolean; cases: CaseRecord[]; stats: Stats };
 
 // The pinned bottom row carries totals for whatever rows the search and filters leave visible.
@@ -74,12 +78,25 @@ function DueCell({ data }: ICellRendererParams<Row>) {
   return <span className="tabular font-medium" style={{ color: d <= 3 ? "var(--danger)" : undefined }}>{d <= 0 ? "Overdue" : `${d} day${d === 1 ? "" : "s"}`}</span>;
 }
 
+function PriorityCell({ data }: ICellRendererParams<Row>) {
+  const p = data?.dispute ? priorityOf(data) : null;
+  if (!p?.label) return null;
+  return (
+    <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: p.label === "Urgent" ? "var(--danger)" : "var(--offer)", border: "1px solid currentColor" }}>
+      {p.label}
+    </span>
+  );
+}
+
 function AgentCell({ data }: ICellRendererParams<Row>) {
   if (!data) return null;
   const r = data.recommendation;
   const decided = data.submitted?.decision ?? r?.decision;
   return (
     <div className="flex h-full items-center gap-3">
+      {data.submitted?.by === "autopilot" ? (
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent" title={data.autopilot?.reason}>Autopilot</span>
+      ) : null}
       {decided ? (
         <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ color: DECISION_COLOR[decided], border: `1px solid ${DECISION_COLOR[decided]}` }}>
           {DECISION_LABEL[decided]}
@@ -138,19 +155,24 @@ export default function Inbox() {
     }
   }, []);
 
+  // Poll quickly while autopilot is working on a dispute, so its alerts show up live.
+  const working = Boolean(data?.cases.some((c) => c.status === "ANALYZING"));
   useEffect(() => {
     load();
-    const t = setInterval(load, 8000);
+    const t = setInterval(load, working ? 1500 : 8000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, working]);
 
+  // The simulated buyer files a dispute and PayPal's webhook reaches the agent; the seller
+  // stays on the inbox and watches autopilot handle it.
   async function fileDispute() {
     setBusy(true);
     const res = await fetch("/api/demo/dispute", { method: "POST" });
     const json = await res.json();
     setBusy(false);
     if (!res.ok) return setError(json.error);
-    router.push(`/cases/${json.id}`);
+    setError(null);
+    load();
   }
 
   async function switchMode(mode: "mock" | "sandbox") {
@@ -219,6 +241,17 @@ export default function Inbox() {
         floatingFilter: true,
       },
       {
+        colId: "priority",
+        headerName: "Priority",
+        headerTooltip: "Open disputes ranked by money at risk and days left to respond",
+        cellRenderer: PriorityCell,
+        cellRendererSelector: pinned(blank),
+        flex: 0.6,
+        minWidth: 100,
+        valueGetter: (p) => (p.data?.dispute ? priorityOf(p.data).score : undefined),
+        sort: "desc",
+      },
+      {
         colId: "due",
         headerName: "Respond within",
         cellRenderer: DueCell,
@@ -226,7 +259,6 @@ export default function Inbox() {
         flex: 0.8,
         minWidth: 130,
         valueGetter: (p) => (p.data?.submitted ? 999 : daysLeft(p.data?.dispute?.seller_response_due_date)),
-        sort: "asc",
       },
       {
         colId: "agent",
@@ -260,14 +292,13 @@ export default function Inbox() {
   );
 
   const s = data?.stats;
-  const winRate = s && s.decided ? Math.round((s.won / s.decided) * 100) : null;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Disputes</h1>
-          <p className="text-sm text-muted">The agent investigates each dispute and recommends a response. Nothing is sent to PayPal until you approve it.</p>
+          <p className="text-sm text-muted">The agent investigates each dispute as PayPal reports it and recommends a response. Nothing goes to PayPal without your approval, except what your autopilot rules allow.</p>
         </div>
         <div className="flex items-center gap-2">
           {data?.sandboxAvailable ? (
@@ -288,7 +319,7 @@ export default function Inbox() {
             <button onClick={reset} className="rounded-md px-3 py-2 text-sm text-muted hover:text-ink">Reset demo</button>
           ) : null}
           <button onClick={fileDispute} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-panel disabled:opacity-60">
-            {busy ? "Filing..." : "File a test dispute"}
+            {busy ? "Filing..." : "Simulate a new dispute"}
           </button>
         </div>
       </div>
@@ -306,12 +337,24 @@ export default function Inbox() {
       ) : null}
       {error ? <p className="rounded-md border border-danger px-3 py-2 text-sm text-danger">{error}</p> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi label="Open disputes" value={s ? String(s.open) : "-"} />
-        <Kpi label="Money at risk" value={s ? money(s.at_risk) : "-"} />
-        <Kpi label="Money kept" value={s ? money(s.kept) : "-"} accent />
-        <Kpi label="Win rate" value={winRate === null ? "-" : `${winRate}%`} sub={s?.decided ? `${s.won} of ${s.decided} decided` : "No rulings yet"} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Kpi label="Money at risk" value={s ? money(s.at_risk) : "-"} sub={s ? `${s.open} open dispute${s.open === 1 ? "" : "s"}` : undefined} />
+        <Kpi
+          label="Due within 3 days"
+          value={s ? String(s.due_soon) : "-"}
+          sub={s?.due_soon ? `${money(s.due_soon_amount)} at stake` : "Nothing urgent"}
+          danger={Boolean(s?.due_soon)}
+        />
+        <Kpi label="Money protected" value={s ? money(s.kept) : "-"} accent sub={s?.rulings ? `Won ${s.won} of ${s.rulings} PayPal ruling${s.rulings === 1 ? "" : "s"}` : "No PayPal rulings yet"} />
+        <Kpi
+          label="Hours saved"
+          value={s ? `${s.hours_saved}h` : "-"}
+          sub={s ? `Est. 45 min of manual work per dispute` : undefined}
+        />
+        <Kpi label="Handled by autopilot" value={s ? `${s.autopilot} of ${s.answered}` : "-"} sub="Responses sent without you" />
       </div>
+
+      <AutopilotPanel cases={data?.cases ?? []} mode={data?.mode} viewOnly={Boolean(data?.viewOnly)} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <input
@@ -351,11 +394,11 @@ export default function Inbox() {
   );
 }
 
-function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+function Kpi({ label, value, sub, accent, danger }: { label: string; value: string; sub?: string; accent?: boolean; danger?: boolean }) {
   return (
     <div className="rounded-lg border border-line bg-panel px-4 py-3">
       <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular" style={accent ? { color: "var(--accent)" } : undefined}>{value}</div>
+      <div className="mt-1 text-2xl font-semibold tabular" style={accent ? { color: "var(--accent)" } : danger ? { color: "var(--danger)" } : undefined}>{value}</div>
       {sub ? <div className="text-xs text-muted">{sub}</div> : null}
     </div>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CaseRecord, Decision, TraceStep } from "@/lib/types";
 import EvidenceGrid from "./EvidenceGrid";
+import WhyPanel from "./WhyPanel";
 import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, REASON_LABEL, statusLabel } from "./format";
 
 const TOOL_LABEL: Record<string, string> = {
@@ -114,6 +115,18 @@ export default function CaseView({ id }: { id: string }) {
       .catch(() => {});
   }, []);
 
+  // Autopilot may be investigating this dispute in the background (it arrived by webhook):
+  // follow its trace until it finishes.
+  const background = c?.status === "ANALYZING" && busy === null;
+  useEffect(() => {
+    if (!background) return;
+    const t = setInterval(async () => {
+      const res = await fetch(`/api/cases/${id}`, { cache: "no-store" }).catch(() => null);
+      if (res?.ok) adopt(await res.json());
+    }, 1000);
+    return () => clearInterval(t);
+  }, [background, id, adopt]);
+
   // In the simulator, PayPal's side plays itself: a few seconds after the seller approves,
   // the buyer accepts the offer or PayPal rules, so every run reaches an end state.
   const awaiting = Boolean(c?.submitted && !c.outcome);
@@ -176,6 +189,18 @@ export default function CaseView({ id }: { id: string }) {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
         <div className="space-y-6">
+          {c.activity?.length ? (
+            <Panel title="Alerts">
+              <ol className="space-y-1.5">
+                {c.activity.map((a, i) => (
+                  <li key={i} className="text-sm">
+                    <span className="text-muted tabular">{new Date(a.at).toLocaleTimeString()}</span> {a.text}
+                  </li>
+                ))}
+              </ol>
+            </Panel>
+          ) : null}
+
           <Panel title="What the buyer said">
             {(d.messages ?? []).filter((m) => m.posted_by === "BUYER").map((m, i) => (
               <blockquote key={i} className="border-l-2 border-line pl-3 text-sm">&ldquo;{m.content}&rdquo;</blockquote>
@@ -203,7 +228,7 @@ export default function CaseView({ id }: { id: string }) {
                   </div>
                 </li>
               ))}
-              {busy === "analyze" ? (
+              {busy === "analyze" || background ? (
                 <li className="flex gap-3 text-sm text-muted">
                   <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-muted" />
                   Thinking...
@@ -238,6 +263,8 @@ export default function CaseView({ id }: { id: string }) {
               ) : null}
             </Panel>
           ) : null}
+
+          {r ? <WhyPanel c={c} toolLabel={TOOL_LABEL} /> : null}
 
           {r && !c.submitted && !c.outcome && viewOnly ? (
             <Panel title="Your response">
@@ -293,7 +320,7 @@ export default function CaseView({ id }: { id: string }) {
             <Panel title="Sent to PayPal">
               <p className="text-sm">
                 {DECISION_LABEL[c.submitted.decision]}
-                {c.submitted.offer_amount ? ` of ${money(c.submitted.offer_amount)}` : ""} &middot; {new Date(c.submitted.at).toLocaleString()}
+                {c.submitted.offer_amount ? ` of ${money(c.submitted.offer_amount)}` : ""} &middot; {c.submitted.by === "autopilot" ? "sent by autopilot" : "approved by you"} &middot; {new Date(c.submitted.at).toLocaleString()}
               </p>
               <p className="whitespace-pre-wrap rounded-md bg-bg p-3 text-sm text-muted">{c.submitted.response}</p>
               {!c.outcome && !viewOnly ? (

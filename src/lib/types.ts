@@ -73,6 +73,8 @@ export type Recommendation = {
   offer_amount: number;
   offer_type: "REFUND" | "REFUND_WITH_RETURN" | "NONE";
   risks: string[];
+  // The facts that drove the decision. Investigations saved before this field existed lack it.
+  factors?: Array<{ finding: string; favors: "SELLER" | "BUYER"; weight: "HIGH" | "MEDIUM" | "LOW"; source: string }>;
 };
 
 export type TraceStep = {
@@ -100,8 +102,26 @@ export type CaseRecord = {
   status: CaseStatus;
   recommendation?: Recommendation;
   trace: TraceStep[];
-  submitted?: { decision: Decision; at: string; response: string; offer_amount?: number };
+  submitted?: { decision: Decision; at: string; response: string; offer_amount?: number; by?: "seller" | "autopilot" };
   outcome?: { result: "WON" | "LOST" | "SETTLED" | "REFUNDED"; amount_kept: number; amount_lost: number; at: string };
   error?: string;
+  // How the case arrived: a PayPal dispute webhook, or the seller opening it from the inbox.
+  source?: "webhook" | "inbox";
+  // What autopilot did once the investigation finished, and which rule decided it.
+  autopilot?: { action: "AUTO_REFUNDED" | "AUTO_FOUGHT" | "NEEDS_APPROVAL" | "FAILED"; reason: string; at: string };
+  // Seller-facing alerts for this case, newest last.
+  activity?: ActivityItem[];
   updated_at: string;
+};
+
+export type ActivityItem = { at: string; text: string; tone: "info" | "good" | "warn" | "bad" };
+
+// Seller rules for autopilot. Autopilot never acts above max_auto_amount, whatever the other rules say.
+export type AutopilotRules = {
+  enabled: boolean;
+  // Accept the claim when the AI recommends a refund and the amount is at most this.
+  auto_refund_max: number;
+  // Send evidence on its own when the AI recommends fighting with at least this win estimate (0 turns it off).
+  auto_fight_min_win: number;
+  max_auto_amount: number;
 };

@@ -8,7 +8,9 @@ A buyer says the package never came. The seller has days to respond. Most small 
 - **Partial refund**, with a specific amount, when the seller is partly at fault.
 - **Refund**, when the case can't be won and fighting would waste the seller's time.
 
-The seller reviews the recommendation, edits it if they want, and approves it. Only then does Rebuttal call PayPal.
+It runs on **autopilot**: PayPal's dispute webhook starts the investigation, and the seller's own rules decide what happens next. A $28 "never arrived" claim on an untracked letter can be refunded through PayPal before the seller wakes up; a $184 fight waits for the seller, with the evidence written and a **why this decision** breakdown (facts for and against, expected money kept for each option). Guardrails keep autopilot small: a hard dollar limit, no partial-refund offers, and nothing on its own after a failed PayPal lookup.
+
+The inbox works as a triage queue: disputes are ranked by money at risk and days left before PayPal's response deadline, and a savings dashboard shows money protected, hours saved and how many disputes autopilot closed.
 
 Built for the [Build What's Next with PayPal and AI](https://paypalaihackathon.devpost.com/) hackathon.
 
@@ -16,7 +18,7 @@ Built for the [Build What's Next with PayPal and AI](https://paypalaihackathon.d
 
 ## Try it (no PayPal login needed)
 
-The demo opens on the **Simulator**. Open a dispute and the agent starts investigating (a saved real Gemini run, replayed). Approve its recommendation, and a few seconds later the simulator plays PayPal's side: the ruling on a fight, or the buyer accepting an offer. Click **PayPal rules for buyer** during the countdown to see a loss instead. **File a test dispute** adds a new case, and **Reset demo** starts over. In the inbox, search or filter by claim, stage and amount; the pinned totals row tracks money at risk and kept for whatever is shown, and **Export outcomes (CSV)** downloads the ledger with plain-number amounts. The toggle at the top switches to **Live PayPal sandbox**, which shows real disputes filed by sandbox buyers.
+The demo opens on the **Simulator**. Click **Simulate a new dispute**: a simulated buyer files a $28 claim, the simulator delivers the same `CUSTOMER.DISPUTE.CREATED` webhook PayPal would, the agent investigates, and autopilot refunds it within your $30 rule. Watch the **Alerts** feed. Set **Send evidence on its own** to 90% and simulate again to see autopilot fight a signed-delivery case. Open a dispute and the agent starts investigating (a saved real Gemini run, replayed). Approve its recommendation, and a few seconds later the simulator plays PayPal's side: the ruling on a fight, or the buyer accepting an offer. Click **PayPal rules for buyer** during the countdown to see a loss instead. **Reset demo** starts over. In the inbox, search or filter by claim, stage and amount; the pinned totals row tracks money at risk and kept for whatever is shown, and **Export outcomes (CSV)** downloads the ledger with plain-number amounts. The toggle at the top switches to **Live PayPal sandbox**, which shows real disputes filed by sandbox buyers.
 
 Each browser gets its own simulator, kept by a cookie: several judges can try the demo at once without seeing each other's clicks, and **Reset demo** resets only yours. The live sandbox is one shared PayPal account, so on a production server it is view-only (cases, saved investigations and outcomes); set `LIVE_SANDBOX_WRITABLE=1` to approve and rule on live disputes, as local development does by default.
 
@@ -45,7 +47,7 @@ Why both: buyer disputes can only be filed by hand in the sandbox and take minut
 | Orders API: `/v2/checkout/orders/{id}/track` | Adds carrier tracking when the app lacks the older trackers permission. |
 | Disputes API: `make-offer` | Sends an approved partial refund. |
 | Disputes API (sandbox): `adjudicate` | Simulates PayPal's ruling, so the full lifecycle runs end-to-end in a demo. |
-| Webhooks: `CUSTOMER.DISPUTE.*` + `verify-webhook-signature` | New disputes are pulled in and analyzed automatically. |
+| Webhooks: `CUSTOMER.DISPUTE.*` + `verify-webhook-signature` | Starts autopilot: a new dispute is investigated in the background and the seller's rules applied, so PayPal either already has an answer or an approval is waiting. The simulator sends the same event through the same code. |
 
 ## How it uses AI
 
@@ -55,7 +57,9 @@ Google Gemini (`gemini-3.5-flash-lite` on the free tier by default, falling back
 2. It cross-checks the evidence. For example, it compares the carrier's delivery address with the shipping address on the order, and checks a payer's earlier purchases before an "unauthorized" claim.
 3. It submits a structured recommendation through a strict-schema tool. The server validates it, and an invalid one goes back to the model as an error.
 
-The model never moves money. Every write call to PayPal happens on the server after a person clicks Approve.
+4. It lists the facts that decided it, each marked for or against the seller with a weight and its source tool, and hears the response deadline so a refund can beat a fight that can't be ready in time.
+
+The model never moves money. Every write call to PayPal is made by the server, either after a person clicks Approve or when the seller's autopilot rules ([`src/lib/rules.ts`](src/lib/rules.ts)) allow it, and the rules are plain code checked after the model answers, not instructions to the model.
 
 Finished investigations are saved (`cache/investigations/`) and replayed step by step for the same dispute facts, so the hosted demo keeps working when the free tier's per-minute limit is hit. **Re-run** forces a fresh investigation, and falls back to the saved one if the model is rate-limited.
 
@@ -69,7 +73,7 @@ cp .env.example .env.local   # add GEMINI_API_KEY
 npm run dev                  # http://localhost:3000
 ```
 
-With no PayPal credentials, the app runs against a built-in **PayPal simulator** ([`src/lib/paypal/mock.ts`](src/lib/paypal/mock.ts)). It returns the same JSON shapes as the sandbox and comes with four realistic disputes for a demo pottery-and-leather shop. Click **File a test dispute** to watch the agent work on a new case.
+With no PayPal credentials, the app runs against a built-in **PayPal simulator** ([`src/lib/paypal/mock.ts`](src/lib/paypal/mock.ts)). It returns the same JSON shapes as the sandbox and comes with four realistic disputes for a demo pottery-and-leather shop. Click **Simulate a new dispute** to watch autopilot handle a new case.
 
 To use the real PayPal sandbox, set `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from a sandbox app at developer.paypal.com (Apps & Credentials, Sandbox). `npm run check:live` confirms the Gemini key and the sandbox credentials work, without printing either.
 
@@ -86,7 +90,7 @@ Disputes over $11 escalate on day 11 in the sandbox; see PayPal's [dispute testi
 
 ### Webhooks
 
-In the sandbox app, add a webhook to `https://<your-host>/api/webhooks/paypal` for the `Customer dispute created / updated / resolved` events. Set `PAYPAL_WEBHOOK_ID` to its ID. New disputes are then analyzed in the background, so a recommendation is ready when the seller opens the case.
+In the sandbox app, add a webhook to `https://<your-host>/api/webhooks/paypal` for the `Customer dispute created / updated / resolved` events. Set `PAYPAL_WEBHOOK_ID` to its ID. New disputes then go through autopilot ([`src/lib/autopilot.ts`](src/lib/autopilot.ts)): investigated in the background, then answered or flagged for approval under the seller's rules.
 
 ## Deploy
 
@@ -98,7 +102,7 @@ In the sandbox app, add a webhook to `https://<your-host>/api/webhooks/paypal` f
 npm test
 ```
 
-The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model.
+The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook.
 
 ## Project layout
 
@@ -109,10 +113,14 @@ src/lib/investigation-cache.ts  Saved investigations for rate-limit-proof demos
 src/lib/paypal/sandbox.ts   PayPal sandbox gateway (Agent Toolkit + Disputes REST)
 src/lib/paypal/mock.ts      In-memory PayPal simulator for demos and tests
 src/lib/actions.ts          Executes the approved decision; maps PayPal outcomes
+src/lib/autopilot.ts        Webhook -> investigation -> seller rules -> PayPal action or alert
+src/lib/rules.ts            Seller autopilot rules and guardrails
 src/lib/demo/scenarios.ts   Demo shop data: listings, messages, carrier scans
 src/components/Inbox.tsx    Dispute inbox (AG Grid: search, column filters, live totals row, CSV export)
 src/components/EvidenceGrid.tsx  Evidence trail: each fact, its PayPal evidence type and source tool (AG Grid)
 src/components/CaseView.tsx Live investigation, recommendation, approval
+src/components/WhyPanel.tsx Why this decision: facts for and against, expected money per option
+src/components/AutopilotPanel.tsx  Autopilot rules and the alerts feed
 ```
 
 ## License

@@ -52,7 +52,7 @@ function build(s: Scenario, seq: number): MockRow {
     dispute_amount: amount,
     dispute_life_cycle_stage: s.stage,
     dispute_channel: s.stage === "CHARGEBACK" ? "EXTERNAL" : "INTERNAL",
-    seller_response_due_date: new Date(Date.now() + (s.stage === "CHARGEBACK" ? 8 : 18) * DAY).toISOString(),
+    seller_response_due_date: new Date(Date.now() + s.due_in_days * DAY).toISOString(),
     disputed_transactions: [
       {
         seller_transaction_id: captureId,
@@ -111,7 +111,8 @@ function state(): MockState {
   g.__rebuttalMock ??= new Map();
   return lruGet(g.__rebuttalMock, visitor().id, () => {
     const st: MockState = { rows: new Map(), nextSeq: 0, filed: new Set() };
-    // Start with three disputes in the inbox; the fourth is filed live in the demo.
+    // Start with three disputes in the inbox; the fourth (a $28 print) arrives live in the
+    // demo through the simulated webhook, small enough for autopilot to refund on its own.
     for (const s of SCENARIOS.slice(0, 3)) addScenario(st, s);
     return st;
   });

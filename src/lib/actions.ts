@@ -9,6 +9,7 @@ export type Approval = {
   response: string;
   offer_amount?: number;
   offer_type?: "REFUND" | "REFUND_WITH_RETURN";
+  by?: "seller" | "autopilot";
 };
 
 export async function approve(caseId: string, a: Approval): Promise<CaseRecord> {
@@ -51,7 +52,7 @@ export async function approve(caseId: string, a: Approval): Promise<CaseRecord> 
   return updateCase(caseId, {
     dispute,
     status: a.decision === "REFUND" ? "REFUNDED" : "SUBMITTED",
-    submitted: { decision: a.decision, at: new Date().toISOString(), response, offer_amount: a.offer_amount },
+    submitted: { decision: a.decision, at: new Date().toISOString(), response, offer_amount: a.offer_amount, by: a.by ?? "seller" },
     outcome: a.decision === "REFUND" ? outcomeFor(dispute, "REFUND") : undefined,
   });
 }
