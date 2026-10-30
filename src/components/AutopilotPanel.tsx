@@ -95,7 +95,11 @@ export default function AutopilotPanel({ cases, mode, viewOnly }: { cases: CaseR
       <div>
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">Alerts</h3>
         {feed.length === 0 ? (
-          <p className="text-sm text-muted">No alerts yet. Simulate a new dispute to watch a PayPal webhook arrive and autopilot handle it.</p>
+          <p className="text-sm text-muted">
+            {mode === "sandbox"
+              ? "No alerts yet. New disputes filed by sandbox buyers arrive here through PayPal's webhook."
+              : "No alerts yet. Simulate a new dispute to watch a PayPal webhook arrive and autopilot handle it."}
+          </p>
         ) : (
           <ol className="space-y-2" aria-live="polite">
             {feed.map((a, i) => (

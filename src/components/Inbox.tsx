@@ -318,9 +318,12 @@ export default function Inbox() {
           {data?.mode === "mock" ? (
             <button onClick={reset} className="rounded-md px-3 py-2 text-sm text-muted hover:text-ink">Reset demo</button>
           ) : null}
-          <button onClick={fileDispute} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-panel disabled:opacity-60">
-            {busy ? "Filing..." : "Simulate a new dispute"}
-          </button>
+          {/* Live sandbox disputes can only be filed by a sandbox buyer on paypal.com. */}
+          {data?.mode === "mock" ? (
+            <button onClick={fileDispute} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-panel disabled:opacity-60">
+              {busy ? "Filing..." : "Simulate a new dispute"}
+            </button>
+          ) : null}
         </div>
       </div>
 
