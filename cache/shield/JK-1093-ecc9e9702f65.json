@@ -1,0 +1,56 @@
+{
+  "key": "JK-1093-ecc9e9702f65",
+  "saved_at": "2026-10-30T17:37:14.986Z",
+  "verdict": {
+    "risk": "HIGH",
+    "score": 85,
+    "headline": "This buyer has an open 'not received' dispute on a previous order, suggesting high risk for this new purchase.",
+    "signals": [
+      {
+        "finding": "Buyer has an open 'merchandise or service not received' dispute (PP-D-27800) for a previous order (JK-1042).",
+        "effect": "RAISES",
+        "source": "get_buyer_history"
+      },
+      {
+        "finding": "Previous disputed order has delivery evidence showing signed delivery by 'WHITFIELD', yet the dispute remains open.",
+        "effect": "RAISES",
+        "source": "get_buyer_history"
+      },
+      {
+        "finding": "Shipping address matches the verified PayPal account address.",
+        "effect": "LOWERS",
+        "source": "get_order"
+      }
+    ],
+    "actions": [
+      "Hold shipment and request identity confirmation or photo verification before fulfilling the order due to the active unresolved dispute on a prior transaction.",
+      "Review tracking and delivery status for the prior disputed order (JK-1042) to confirm the shop's delivery evidence."
+    ]
+  },
+  "trace": [
+    {
+      "kind": "tool",
+      "tool": "get_order",
+      "input": {
+        "id": "6LSQC888L28S0204N"
+      },
+      "summary": "Order 6LSQC888L28S0204N: $148.00, Standard, tracked, ships to Dana Whitfield in Denver, CO",
+      "at": "2026-10-30T17:37:11.774Z"
+    },
+    {
+      "kind": "tool",
+      "tool": "get_buyer_history",
+      "input": {
+        "email": "dana.w@example.com"
+      },
+      "summary": "1 completed order, 1 past dispute (JK-1042)",
+      "at": "2026-10-30T17:37:13.224Z"
+    },
+    {
+      "kind": "note",
+      "summary": "Risk: HIGH (85/100)",
+      "at": "2026-10-30T17:37:14.986Z"
+    }
+  ],
+  "model": "gemini:gemini-3.5-flash-lite"
+}

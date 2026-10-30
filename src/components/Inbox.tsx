@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseRecord } from "@/lib/types";
 import AutopilotPanel from "./AutopilotPanel";
+import ShieldPanel from "./ShieldPanel";
 import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
 import { gridTheme } from "./grid";
 
@@ -358,6 +359,8 @@ export default function Inbox() {
       </div>
 
       <AutopilotPanel cases={data?.cases ?? []} mode={data?.mode} viewOnly={Boolean(data?.viewOnly)} />
+
+      {data?.mode === "mock" ? <ShieldPanel key={data.cases.length ? "on" : "reset"} viewOnly={Boolean(data.viewOnly)} /> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <input

@@ -1,0 +1,61 @@
+{
+  "key": "JK-1088-17a0be5d8101",
+  "saved_at": "2026-10-30T17:39:01.281Z",
+  "verdict": {
+    "risk": "HIGH",
+    "score": 85,
+    "headline": "This high-risk order combines an unverified account, expensive overnight shipping, and a package forwarder with a mismatched recipient name.",
+    "signals": [
+      {
+        "finding": "The buyer's PayPal account is unverified.",
+        "effect": "RAISES",
+        "source": "get_order"
+      },
+      {
+        "finding": "The order uses overnight express shipping and costs $236.00, matching typical stolen-account fraud patterns.",
+        "effect": "RAISES",
+        "source": "get_order"
+      },
+      {
+        "finding": "The shipping address is a package forwarder (ParcelBridge Forwarding) with a different recipient name (R. Vance) than the PayPal payer (Tomas Reyes).",
+        "effect": "RAISES",
+        "source": "get_order"
+      },
+      {
+        "finding": "The buyer has no completed orders or history with the shop.",
+        "effect": "RAISES",
+        "source": "get_buyer_history"
+      }
+    ],
+    "actions": [
+      "Ship only to the verified PayPal address on the transaction (1450 SW 8th St, Miami, FL) or cancel and refund the order",
+      "Require signature confirmation if shipping to an approved alternate address"
+    ]
+  },
+  "trace": [
+    {
+      "kind": "tool",
+      "tool": "get_order",
+      "input": {
+        "id": "SCE0N2ECCN6E2QJ8J"
+      },
+      "summary": "Order SCE0N2ECCN6E2QJ8J: $236.00, Overnight express, ships to R. Vance c/o ParcelBridge Forwarding in Doral, FL",
+      "at": "2026-10-30T17:38:57.721Z"
+    },
+    {
+      "kind": "tool",
+      "tool": "get_buyer_history",
+      "input": {
+        "email": "t.reyes.shop@example.com"
+      },
+      "summary": "0 completed orders, 0 past disputes",
+      "at": "2026-10-30T17:39:00.017Z"
+    },
+    {
+      "kind": "note",
+      "summary": "Risk: HIGH (85/100)",
+      "at": "2026-10-30T17:39:01.281Z"
+    }
+  ],
+  "model": "gemini:gemini-3.5-flash-lite"
+}

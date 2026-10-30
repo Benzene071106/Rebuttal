@@ -1,0 +1,55 @@
+{
+  "key": "JK-1090-dc5b6cabe13f",
+  "saved_at": "2026-10-30T17:37:10.193Z",
+  "verdict": {
+    "risk": "LOW",
+    "score": 5,
+    "headline": "This low-risk order is from a repeat customer with three completed orders and no previous disputes.",
+    "signals": [
+      {
+        "finding": "Buyer has three completed past orders with no dispute history.",
+        "effect": "LOWERS",
+        "source": "get_buyer_history"
+      },
+      {
+        "finding": "PayPal account is verified and shipping address matches the payer address exactly.",
+        "effect": "LOWERS",
+        "source": "get_order"
+      },
+      {
+        "finding": "Standard tracked shipping selected for a modest order value ($58.00).",
+        "effect": "LOWERS",
+        "source": "get_order"
+      }
+    ],
+    "actions": [
+      "Ship the order normally using standard tracked shipping to the verified PayPal address."
+    ]
+  },
+  "trace": [
+    {
+      "kind": "tool",
+      "tool": "get_order",
+      "input": {
+        "id": "Q80SJ0S442W6YQEAL"
+      },
+      "summary": "Order Q80SJ0S442W6YQEAL: $58.00, Standard, tracked, ships to Hannah Cole in Madison, WI",
+      "at": "2026-10-30T17:37:03.485Z"
+    },
+    {
+      "kind": "tool",
+      "tool": "get_buyer_history",
+      "input": {
+        "email": "hannah.cole@example.com"
+      },
+      "summary": "3 completed orders, 0 past disputes",
+      "at": "2026-10-30T17:37:06.166Z"
+    },
+    {
+      "kind": "note",
+      "summary": "Risk: LOW (5/100)",
+      "at": "2026-10-30T17:37:10.193Z"
+    }
+  ],
+  "model": "gemini:gemini-3.5-flash-lite"
+}

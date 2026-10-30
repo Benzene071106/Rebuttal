@@ -77,6 +77,12 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
       }
     },
 
+    // The shield runs on the simulator's orders. A live install would collect these from
+    // PAYMENT.CAPTURE.COMPLETED webhooks and the shop's fulfillment system.
+    async ordersAwaitingShipment() {
+      return [];
+    },
+
     async listDisputes() {
       const list = await toolkit("list_disputes", { page_size: 50 });
       const items: Array<{ dispute_id: string }> = list.items ?? [];

@@ -2,6 +2,7 @@
 // Disputes, Orders, Shipment Tracking and Transaction Search APIs. Used for local
 // development and tests when sandbox credentials or network access are missing.
 
+import { PENDING_ORDERS, type PendingOrder } from "../demo/orders";
 import { personaFor, SCENARIOS, SHOP, type Scenario } from "../demo/scenarios";
 import type { Dispute } from "../types";
 import type { EvidenceSubmission, PayPalGateway } from "./gateway";
@@ -111,6 +112,40 @@ function build(s: Scenario, seq: number): MockRow {
   return { scenario: s, dispute, order, captureId, tracker, submissions: [], buyerRound: 0 };
 }
 
+// The PayPal order behind a paid order that hasn't shipped yet (Orders v2 shape).
+function pendingOrder(o: PendingOrder, i: number) {
+  const amount = { currency_code: "USD", value: o.amount };
+  const created = iso(o.paid_hours_ago * 3_600_000);
+  const addr = (a: string) => {
+    const parts = a.split(", ");
+    const [state, zip] = parts.at(-1)!.split(" ");
+    return { address_line_1: parts.slice(0, -2).join(", "), admin_area_2: parts.at(-2), admin_area_1: state, postal_code: zip, country_code: "US" };
+  };
+  return {
+    id: id("", i + 301, 17),
+    intent: "CAPTURE",
+    status: "COMPLETED",
+    create_time: created,
+    payer: { name: { given_name: o.buyer.name.split(" ")[0], surname: o.buyer.name.split(" ")[1] }, email_address: o.buyer.email, payer_id: o.buyer.payer_id, address: addr(o.buyer.address) },
+    payment_source: { paypal: { email_address: o.buyer.email, account_id: o.buyer.payer_id, account_status: o.buyer.account_status, address: addr(o.buyer.address) } },
+    purchase_units: [
+      {
+        reference_id: "default",
+        invoice_id: o.key,
+        amount: { ...amount, breakdown: { item_total: { currency_code: "USD", value: (Number(o.amount) - Number(o.shipping.amount)).toFixed(2) }, shipping: { currency_code: "USD", value: o.shipping.amount } } },
+        items: [{ name: o.item.name, sku: o.item.id, quantity: String(o.item.qty) }],
+        shipping: {
+          name: { full_name: o.ship_to.name },
+          address: addr(o.ship_to.address),
+          options: [{ id: o.shipping.id, label: o.shipping.label, selected: true, amount: { currency_code: "USD", value: o.shipping.amount } }],
+        },
+        payments: { captures: [{ id: id("", i + 401, 17), status: "COMPLETED", amount, create_time: created, final_capture: true }] },
+      },
+    ],
+  };
+}
+const PENDING = PENDING_ORDERS.map(pendingOrder);
+
 function state(): MockState {
   g.__rebuttalMock ??= new Map();
   return lruGet(g.__rebuttalMock, visitor().id, () => {
@@ -198,6 +233,8 @@ export const mockGateway: PayPalGateway = {
       case "get_dispute":
         return row(String(input.dispute_id)).dispute;
       case "get_order": {
+        const pending = PENDING.find((o) => o.id === input.id);
+        if (pending) return pending;
         const r = all.find((x) => x.order.id === input.id);
         if (!r) throw new Error(`RESOURCE_NOT_FOUND: order ${input.id}`);
         return r.order;
@@ -252,6 +289,10 @@ export const mockGateway: PayPalGateway = {
   async orderIdForInvoice(invoiceId) {
     const r = [...state().rows.values()].find((x) => x.scenario.key === invoiceId);
     return r ? String(r.order.id) : null;
+  },
+
+  async ordersAwaitingShipment() {
+    return PENDING.map((o) => ({ order_id: o.id, invoice_id: o.purchase_units[0].invoice_id }));
   },
 
   async listDisputes() {

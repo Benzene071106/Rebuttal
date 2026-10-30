@@ -18,6 +18,8 @@ export interface PayPalGateway {
 
   // The shop's own order system remembers which PayPal order paid each invoice.
   orderIdForInvoice(invoiceId: string): Promise<string | null>;
+  // Paid orders not shipped yet, for the dispute shield: { PayPal order id, invoice }.
+  ordersAwaitingShipment(): Promise<Array<{ order_id: string; invoice_id: string }>>;
 
   listDisputes(): Promise<Dispute[]>;
   getDispute(id: string): Promise<Dispute>;
