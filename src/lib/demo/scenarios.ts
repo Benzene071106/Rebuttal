@@ -37,7 +37,28 @@ export type Scenario = {
   tracker_status: "SHIPPED" | "DELIVERED" | null;
   // Days left for the seller to respond when the simulator files the dispute.
   due_in_days: number;
+  // How the simulated buyer haggles when the agent negotiates a partial refund.
+  buyer_negotiation?: BuyerPersona;
 };
+
+// The simulated buyer accepts any offer at or above `reservation` (never revealed to the
+// agent), otherwise answers with the next ask and line, then lets PayPal decide.
+export type BuyerPersona = { reservation: number; asks: number[]; counters: string[]; accept: string; walk_away: string };
+
+export function personaFor(s: Scenario | undefined, amount: number): BuyerPersona {
+  if (s?.buyer_negotiation) return s.buyer_negotiation;
+  const r = (f: number) => Math.round(amount * f);
+  return {
+    reservation: r(0.35),
+    asks: [r(0.6), r(0.45)],
+    counters: [
+      `That's too low for what happened. I'd accept $${r(0.6)}.`,
+      `I can come down a bit, but not that far. $${r(0.45)} and we're done.`,
+    ],
+    accept: "Okay, that works for me. Thanks for sorting it out.",
+    walk_away: "Then I'll let PayPal decide.",
+  };
+}
 
 const daysAgo = (d: number, h = 10) => {
   const t = new Date();
@@ -100,6 +121,16 @@ export const SCENARIOS: Scenario[] = [
   {
     key: "JK-1057",
     due_in_days: 9,
+    buyer_negotiation: {
+      reservation: 30,
+      asks: [48, 36],
+      counters: [
+        "The chip isn't my only problem, the blue is much darker than in your photos. I'd settle for $48, half the order.",
+        "I hear you on the glaze, but one mug's worth feels low for the hassle of all this. $36 and we're done.",
+      ],
+      accept: "Okay, that works for me. Thanks for sorting it out quickly.",
+      walk_away: "Then I'll wait for PayPal to decide.",
+    },
     title: "Mug arrived chipped, buyer wants a full refund",
     reason: "MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED",
     stage: "INQUIRY",

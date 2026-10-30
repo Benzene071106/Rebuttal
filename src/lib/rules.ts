@@ -7,13 +7,14 @@ import { z } from "zod";
 import type { AutopilotRules, CaseRecord } from "./types";
 import { lruGet, visitor } from "./visitor";
 
-export const DEFAULT_RULES: AutopilotRules = { enabled: true, auto_refund_max: 30, auto_fight_min_win: 0, max_auto_amount: 250 };
+export const DEFAULT_RULES: AutopilotRules = { enabled: true, auto_refund_max: 30, auto_fight_min_win: 0, max_auto_amount: 250, negotiate_max_pct: 0.4 };
 
 export const RulesSchema = z.object({
   enabled: z.boolean(),
   auto_refund_max: z.number().min(0).max(10_000),
   auto_fight_min_win: z.number().min(0).max(1),
   max_auto_amount: z.number().min(0).max(10_000),
+  negotiate_max_pct: z.number().min(0).max(0.95).default(DEFAULT_RULES.negotiate_max_pct),
 });
 
 const FILE = path.join(process.cwd(), "data", "rules.json");

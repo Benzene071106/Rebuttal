@@ -153,6 +153,11 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
       });
     },
 
+    async sendMessage(id, message) {
+      await requireAction(id, "send_message", "PayPal doesn't allow messages to the buyer on this dispute right now (chargebacks and cases under PayPal review have no buyer conversation).");
+      await call("POST", `/v1/customer/disputes/${id}/send-message`, { message });
+    },
+
     async acceptClaim(id, note) {
       await requireAction(id, "accept_claim", "PayPal isn't letting the seller accept this claim right now (it is under PayPal review). Try again once PayPal asks the seller to respond.");
       try {

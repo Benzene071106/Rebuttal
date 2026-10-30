@@ -111,7 +111,29 @@ export type CaseRecord = {
   autopilot?: { action: "AUTO_REFUNDED" | "AUTO_FOUGHT" | "NEEDS_APPROVAL" | "FAILED"; reason: string; at: string };
   // Seller-facing alerts for this case, newest last.
   activity?: ActivityItem[];
+  // The agent's partial-refund negotiation with the buyer, when the seller started one.
+  negotiation?: Negotiation;
   updated_at: string;
+};
+
+export type NegotiationTurn = {
+  at: string;
+  from: "AGENT" | "BUYER";
+  text: string;
+  // AGENT: the refund offered with this message. BUYER: the refund the buyer asked for.
+  amount?: number;
+  // AGENT only: why it made this move (shown to the seller, never sent to the buyer),
+  // and whether the model or the rule-based fallback chose it.
+  reasoning?: string;
+  by?: "model" | "rules";
+};
+
+export type Negotiation = {
+  status: "ACTIVE" | "WAITING_FOR_BUYER" | "SETTLED" | "HANDED_BACK";
+  // The most the seller lets the agent refund. Enforced in code, never shown to the buyer.
+  max_refund: number;
+  turns: NegotiationTurn[];
+  note?: string;
 };
 
 export type ActivityItem = { at: string; text: string; tone: "info" | "good" | "warn" | "bad" };
@@ -124,4 +146,6 @@ export type AutopilotRules = {
   // Send evidence on its own when the AI recommends fighting with at least this win estimate (0 turns it off).
   auto_fight_min_win: number;
   max_auto_amount: number;
+  // The negotiator may refund at most this share of the disputed amount.
+  negotiate_max_pct: number;
 };

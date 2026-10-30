@@ -80,6 +80,13 @@ export default function AutopilotPanel({ cases, mode, viewOnly }: { cases: CaseR
               Never act on its own above
               <span className="flex items-center">$<input aria-label="Autopilot hard limit" value={rules.max_auto_amount} onChange={(e) => set({ max_auto_amount: num(e.target.value) })} inputMode="decimal" className="ml-0.5 w-16 rounded border border-line bg-bg px-1.5 py-0.5 tabular" /></span>
             </label>
+            <label className="flex flex-wrap items-center gap-2">
+              When you hand a partial refund to the agent, it may refund at most
+              <select aria-label="Negotiation ceiling" value={rules.negotiate_max_pct} onChange={(e) => set({ negotiate_max_pct: Number(e.target.value) })} className="rounded border border-line bg-bg px-1.5 py-0.5">
+                {[0.25, 0.3, 0.4, 0.5].map((p) => <option key={p} value={p}>{Math.round(p * 100)}%</option>)}
+              </select>
+              of the order
+            </label>
             <p className="text-xs text-muted">Always left to you: partial-refund offers, anything over the limit, and any investigation where a PayPal lookup failed.</p>
           </fieldset>
         ) : null}

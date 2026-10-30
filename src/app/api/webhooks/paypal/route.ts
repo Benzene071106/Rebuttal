@@ -1,5 +1,7 @@
 import { after } from "next/server";
 import { ingestDisputeEvent, runAutopilot } from "@/lib/autopilot";
+import { getCase } from "@/lib/cases";
+import { negotiate } from "@/lib/negotiation";
 import { paypal } from "@/lib/paypal";
 import { runAs, type Visitor } from "@/lib/visitor";
 
@@ -29,5 +31,9 @@ async function handle(req: Request) {
 
   const { case: rec, investigate } = await ingestDisputeEvent(event);
   if (investigate) after(() => runAs(SERVER, () => runAutopilot(rec.id)));
+  // The buyer answered an offer from the negotiator: let the agent make its next move.
+  else if (getCase(rec.id)?.negotiation?.status === "WAITING_FOR_BUYER") {
+    after(() => runAs(SERVER, () => negotiate(rec.id).catch((e) => console.error(`negotiation ${rec.id} failed:`, e))));
+  }
   return Response.json({ received: true });
 }

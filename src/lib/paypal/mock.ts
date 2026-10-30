@@ -2,7 +2,7 @@
 // Disputes, Orders, Shipment Tracking and Transaction Search APIs. Used for local
 // development and tests when sandbox credentials or network access are missing.
 
-import { SCENARIOS, SHOP, type Scenario } from "../demo/scenarios";
+import { personaFor, SCENARIOS, SHOP, type Scenario } from "../demo/scenarios";
 import type { Dispute } from "../types";
 import type { EvidenceSubmission, PayPalGateway } from "./gateway";
 import { sharedToolDefs } from "./toolkit";
@@ -15,6 +15,10 @@ type MockRow = {
   captureId: string;
   tracker: Record<string, unknown> | null;
   submissions: unknown[];
+  // Haggling state of the simulated buyer: how many counters they have made, and a
+  // reply that "arrives" a moment after the seller's message, like a real buyer.
+  buyerRound: number;
+  pendingReply?: { due: number; apply: () => void };
 };
 
 type MockState = { rows: Map<string, MockRow>; nextSeq: number; filed: Set<string> };
@@ -104,7 +108,7 @@ function build(s: Scenario, seq: number): MockRow {
           last_updated_time: f.carrier_events.at(-1)?.at,
         }
       : null;
-  return { scenario: s, dispute, order, captureId, tracker, submissions: [] };
+  return { scenario: s, dispute, order, captureId, tracker, submissions: [], buyerRound: 0 };
 }
 
 function state(): MockState {
@@ -128,7 +132,50 @@ function addScenario(st: MockState, s: Scenario) {
 function row(disputeId: string) {
   const r = state().rows.get(disputeId);
   if (!r) throw new Error(`RESOURCE_NOT_FOUND: dispute ${disputeId}`);
+  settle(r);
   return r;
+}
+
+const BUYER_REPLY_MS = 1800;
+
+// Delivers the simulated buyer's reply once its moment has come.
+function settle(r: MockRow) {
+  if (r.pendingReply && Date.now() >= r.pendingReply.due) {
+    const p = r.pendingReply;
+    r.pendingReply = undefined;
+    p.apply();
+  }
+}
+
+// The simulated buyer answers the seller's latest offer: accept it if it reaches their
+// private minimum, otherwise counter, and after their last counter let PayPal decide.
+function scheduleBuyerReply(r: MockRow) {
+  const offered = Number(r.dispute.offer?.seller_offered_amount?.value ?? 0);
+  const persona = personaFor(r.scenario, Number(r.dispute.dispute_amount.value));
+  const say = (content: string) => [...(r.dispute.messages ?? []), { posted_by: "BUYER" as const, time_posted: new Date().toISOString(), content }];
+  r.pendingReply = {
+    due: Date.now() + BUYER_REPLY_MS,
+    apply: () => {
+      if (offered >= persona.reservation) {
+        touch(r, {
+          status: "RESOLVED",
+          messages: say(persona.accept),
+          dispute_outcome: { outcome_code: "RESOLVED_WITH_PAYOUT", amount_refunded: { currency_code: r.dispute.dispute_amount.currency_code, value: offered.toFixed(2) } },
+        });
+      } else if (r.buyerRound < persona.asks.length) {
+        const ask = persona.asks[r.buyerRound];
+        const line = persona.counters[r.buyerRound];
+        r.buyerRound++;
+        touch(r, {
+          status: "WAITING_FOR_SELLER_RESPONSE",
+          messages: say(line),
+          offer: { ...r.dispute.offer, buyer_requested_amount: { currency_code: r.dispute.dispute_amount.currency_code, value: ask.toFixed(2) } },
+        });
+      } else {
+        touch(r, { status: "UNDER_REVIEW", messages: say(persona.walk_away) });
+      }
+    },
+  };
 }
 
 function touch(r: MockRow, patch: Partial<Dispute>) {
@@ -208,7 +255,7 @@ export const mockGateway: PayPalGateway = {
   },
 
   async listDisputes() {
-    return [...state().rows.values()].map((r) => r.dispute);
+    return [...state().rows.values()].map((r) => (settle(r), r.dispute));
   },
 
   async getDispute(id) {
@@ -229,9 +276,16 @@ export const mockGateway: PayPalGateway = {
     r.submissions.push({ kind: "offer", ...offer });
     touch(r, {
       status: "WAITING_FOR_BUYER_RESPONSE",
-      offer: { seller_offered_amount: { currency_code: offer.currency, value: offer.amount }, offer_type: offer.type },
+      offer: { ...r.dispute.offer, seller_offered_amount: { currency_code: offer.currency, value: offer.amount }, offer_type: offer.type },
       messages: [...(r.dispute.messages ?? []), { posted_by: "SELLER", time_posted: new Date().toISOString(), content: offer.note }],
     });
+    if (offer.negotiating) scheduleBuyerReply(r);
+  },
+
+  async sendMessage(id, message) {
+    const r = row(id);
+    r.submissions.push({ kind: "message", message });
+    touch(r, { messages: [...(r.dispute.messages ?? []), { posted_by: "SELLER", time_posted: new Date().toISOString(), content: message }] });
   },
 
   async acceptClaim(id, note) {

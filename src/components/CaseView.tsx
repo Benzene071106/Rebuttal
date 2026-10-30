@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CaseRecord, Decision, TraceStep } from "@/lib/types";
+import type { CaseRecord, Decision, NegotiationTurn, TraceStep } from "@/lib/types";
 import EvidenceGrid from "./EvidenceGrid";
+import NegotiationPanel from "./NegotiationPanel";
 import WhyPanel from "./WhyPanel";
 import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, REASON_LABEL, statusLabel } from "./format";
 
@@ -23,6 +24,10 @@ export default function CaseView({ id }: { id: string }) {
   const [decision, setDecision] = useState<Decision>("FIGHT");
   const [response, setResponse] = useState("");
   const [offer, setOffer] = useState("");
+  const [ceilingPct, setCeilingPct] = useState(0.4);
+  const [ceiling, setCeiling] = useState("");
+  const [negLive, setNegLive] = useState<NegotiationTurn[] | null>(null);
+  const negPanel = useRef<HTMLDivElement>(null);
   const started = useRef(false);
   const [simulator, setSimulator] = useState(false);
   const [viewOnly, setViewOnly] = useState(false);
@@ -95,6 +100,41 @@ export default function CaseView({ id }: { id: string }) {
     };
   }, [id, adopt, analyze]);
 
+  // Hands the partial refund to the agent, which haggles with the buyer up to the
+  // ceiling; the conversation streams in as it happens.
+  async function startNegotiation(max: number) {
+    setBusy("negotiate");
+    setError(null);
+    setNegLive(c?.negotiation?.turns ?? []);
+    setTimeout(() => negPanel.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    const res = await fetch(`/api/cases/${id}/negotiate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ max_refund: max }) });
+    if (!res.ok || !res.body) {
+      const json = await res.json().catch(() => ({ error: "Negotiation failed." }));
+      setBusy(null);
+      setNegLive(null);
+      return setError(json.error);
+    }
+    setC((cur) => (cur && !cur.negotiation ? { ...cur, negotiation: { status: "ACTIVE", max_refund: max, turns: [] } } : cur));
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop()!;
+      for (const line of lines.filter(Boolean)) {
+        const msg = JSON.parse(line);
+        if (msg.type === "turn") setNegLive((t) => [...(t ?? []), msg.turn]);
+        if (msg.type === "done") adopt(msg.case);
+        if (msg.type === "error") setError(msg.error);
+      }
+    }
+    setNegLive(null);
+    setBusy(null);
+  }
+
   async function post(path: string, body: unknown, label: string) {
     setBusy(label);
     setError(null);
@@ -113,6 +153,10 @@ export default function CaseView({ id }: { id: string }) {
         setViewOnly(Boolean(m.viewOnly));
       })
       .catch(() => {});
+    fetch("/api/rules", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((rules) => typeof rules.negotiate_max_pct === "number" && setCeilingPct(rules.negotiate_max_pct))
+      .catch(() => {});
   }, []);
 
   // Autopilot may be investigating this dispute in the background (it arrived by webhook):
@@ -129,7 +173,8 @@ export default function CaseView({ id }: { id: string }) {
 
   // In the simulator, PayPal's side plays itself: a few seconds after the seller approves,
   // the buyer accepts the offer or PayPal rules, so every run reaches an end state.
-  const awaiting = Boolean(c?.submitted && !c.outcome);
+  // A negotiation plays out on its own, so it gets no countdown.
+  const awaiting = Boolean(c?.submitted && !c.outcome && !c.negotiation);
   useEffect(() => {
     const ended = wasAwaiting.current && !awaiting;
     wasAwaiting.current = awaiting;
@@ -312,10 +357,41 @@ export default function CaseView({ id }: { id: string }) {
                   {busy === "approve" ? "Sending..." : decision === "FIGHT" ? "Approve and send evidence" : decision === "OFFER" ? "Approve and send offer" : "Approve refund"}
                 </button>
               </div>
+              {decision === "OFFER" ? (
+                <div className="space-y-2 rounded-md border border-accent bg-accent-soft p-3">
+                  <p className="text-sm font-medium">Or let the agent negotiate with the buyer</p>
+                  <p className="text-xs text-muted">It opens low, answers the buyer&apos;s counters with the evidence, and settles. It can never refund more than your ceiling, and the buyer never sees it.</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      Ceiling $
+                      <input
+                        aria-label="Negotiation ceiling"
+                        value={ceiling || (Number(d.dispute_amount.value) * ceilingPct).toFixed(2)}
+                        onChange={(e) => setCeiling(e.target.value)}
+                        inputMode="decimal"
+                        className="w-24 rounded-md border border-line bg-bg px-2 py-1 tabular"
+                      />
+                    </label>
+                    <button
+                      onClick={() => startNegotiation(Number(ceiling || (Number(d.dispute_amount.value) * ceilingPct).toFixed(2)))}
+                      disabled={busy !== null}
+                      className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-panel disabled:opacity-60"
+                    >
+                      Let the agent negotiate
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </Panel>
           ) : null}
 
-          {c.submitted ? (
+          {c.negotiation || negLive ? (
+            <div ref={negPanel}>
+              <NegotiationPanel c={c.negotiation ? c : { ...c, negotiation: { status: "ACTIVE", max_refund: Number(ceiling || (Number(d.dispute_amount.value) * ceilingPct).toFixed(2)), turns: [] } }} live={negLive} busy={busy === "negotiate"} />
+            </div>
+          ) : null}
+
+          {c.submitted && !c.negotiation ? (
             <div ref={sentPanel}>
             <Panel title="Sent to PayPal">
               <p className="text-sm">

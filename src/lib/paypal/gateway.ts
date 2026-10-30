@@ -24,8 +24,12 @@ export interface PayPalGateway {
 
   // Write side: only ever called after the seller approves.
   provideEvidence(id: string, ev: EvidenceSubmission): Promise<void>;
-  makeOffer(id: string, offer: { amount: string; currency: string; type: "REFUND" | "REFUND_WITH_RETURN"; note: string }): Promise<void>;
+  // `negotiating` marks an offer made by the negotiator, which expects the buyer to
+  // answer in the dispute conversation (the simulator's buyer then haggles).
+  makeOffer(id: string, offer: { amount: string; currency: string; type: "REFUND" | "REFUND_WITH_RETURN"; note: string; negotiating?: boolean }): Promise<void>;
   acceptClaim(id: string, note: string): Promise<void>;
+  // Posts a message to the buyer in the dispute conversation.
+  sendMessage(id: string, message: string): Promise<void>;
   // Makes sure PayPal has the carrier tracking on the disputed transaction before we
   // fight: PayPal's item-not-received decisions lean heavily on it.
   addTracking(transactionId: string, t: { carrier: string; tracking_number: string }, orderId?: string | null): Promise<"added" | "exists">;

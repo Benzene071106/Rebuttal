@@ -1,0 +1,10 @@
+{
+  "key": "JK-1057-310e3bde4c9f",
+  "saved_at": "2026-10-30T17:27:00.089Z",
+  "move": {
+    "amount": 32,
+    "reasoning": "We previously offered $24 (value of 1 mug). The buyer asked for $48. Our ceiling is $38.40. I will concede in a shrinking step to $32, which is above our previous offer and below the ceiling, acknowledging the color disappointment slightly while holding the line on the set policy.",
+    "message": "Hi Priya, I understand the darker blue wasn't what you expected, though our listing does note that handmade glazes vary piece by piece. Since you also received a chipped mug, we can meet you in the middle at a $32 refund to cover that piece and help make things right. - Juniper & Kiln",
+    "action": "OFFER"
+  }
+}
