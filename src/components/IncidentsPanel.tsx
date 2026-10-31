@@ -6,14 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Incident } from "@/lib/types";
 import { DECISION_LABEL, money } from "./format";
 import { gridTheme } from "./grid";
+import { Empty } from "./ui";
 
 type Row = Incident & { detail?: true };
-type Fault = "OUTAGE" | "TOKEN_EXPIRED" | "INSUFFICIENT_FUNDS";
-const FAULTS: Array<[Fault, string]> = [
-  ["OUTAGE", "PayPal outage (503, twice)"],
-  ["TOKEN_EXPIRED", "Expired PayPal token (401)"],
-  ["INSUFFICIENT_FUNDS", "Refund refused: insufficient funds (422)"],
-];
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -93,8 +88,6 @@ function Detail({ data }: ICellRendererParams<Row>) {
 // Self-healing log: PayPal calls that failed while Rebuttal acted, and what the agent did.
 export default function IncidentsPanel({ mode, refreshKey }: { mode?: "mock" | "sandbox"; refreshKey: string }) {
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [armed, setArmed] = useState<Fault | null>(null);
-  const [pick, setPick] = useState<Fault>("INSUFFICIENT_FUNDS");
   const [open, setOpen] = useState<string | null>(null);
   const grid = useRef<AgGridReact<Row>>(null);
 
@@ -103,7 +96,6 @@ export default function IncidentsPanel({ mode, refreshKey }: { mode?: "mock" | "
     if (!res.ok) return;
     const json = await res.json();
     setIncidents(json.incidents);
-    setArmed(json.armed);
   }, []);
   // Reload whenever the inbox's cases change (the inbox polls PayPal).
   useEffect(() => {
@@ -113,12 +105,6 @@ export default function IncidentsPanel({ mode, refreshKey }: { mode?: "mock" | "
     grid.current?.api?.refreshCells({ columns: ["expand"], force: true });
   }, [open]);
 
-  async function arm(kind: Fault | null) {
-    const res = await fetch("/api/demo/fault", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind }) });
-    if (res.ok) setArmed((await res.json()).armed);
-  }
-
-  if (mode !== "mock" && !incidents.length) return null;
   const healed = incidents.filter((i) => i.result === "HEALED").length;
   const rows: Row[] = incidents.flatMap((i) => (open === i.id ? [i, { ...i, detail: true as const }] : [i]));
 
@@ -132,23 +118,14 @@ export default function IncidentsPanel({ mode, refreshKey }: { mode?: "mock" | "
         {incidents.length ? <span className="text-xs text-muted tabular">{healed} of {incidents.length} self-healed</span> : null}
       </div>
 
-      {mode === "mock" ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted">Test it:</span>
-          <select value={pick} onChange={(e) => setPick(e.target.value as Fault)} aria-label="PayPal fault to inject" className="rounded-md border border-line bg-panel px-2 py-1.5">
-            {FAULTS.map(([k, label]) => (
-              <option key={k} value={k}>{label}</option>
-            ))}
-          </select>
-          <button onClick={() => arm(pick)} className="rounded-md border border-line px-3 py-1.5 hover:border-accent">Break PayPal&apos;s next call</button>
-          {armed ? (
-            <span className="text-xs" style={{ color: "var(--offer)" }}>
-              Armed: {FAULTS.find(([k]) => k === armed)?.[1]}. Approve a response or simulate a dispute.{" "}
-              <button onClick={() => arm(null)} className="underline">Cancel</button>
-            </span>
-          ) : null}
+      {incidents.length ? null : (
+        <div className="mt-3">
+          <Empty>
+            No PayPal incidents yet.
+            {mode === "mock" ? " To test it, open Simulator tools, choose a fault and click Break PayPal's next call." : ""}
+          </Empty>
         </div>
-      ) : null}
+      )}
 
       {incidents.length ? (
         <div className="mt-3">

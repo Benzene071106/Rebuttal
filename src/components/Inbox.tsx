@@ -5,19 +5,14 @@ import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseRecord } from "@/lib/types";
-import AutopilotPanel from "./AutopilotPanel";
-import IncidentsPanel from "./IncidentsPanel";
-import InboxCharts from "./InboxCharts";
-import ShieldPanel from "./ShieldPanel";
+import { AlertsFeed } from "./AutopilotPanel";
+import { useCases } from "./CasesProvider";
+import WelcomeTour from "./WelcomeTour";
 import Link from "next/link";
 import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
 import { gridTheme } from "./grid";
+import { Badge, BUTTON, Card, Kpi } from "./ui";
 
-type Stats = {
-  open: number; at_risk: number; kept: number; won: number; decided: number; rulings: number;
-  answered: number; autopilot: number; hours_saved: number; due_soon: number; due_soon_amount: number;
-};
-type Payload = { mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?: boolean; cases: CaseRecord[]; stats: Stats };
 
 // The pinned bottom row carries totals for whatever rows the search and filters leave visible.
 type Totals = { count: number; atRisk: number; kept: number; refunded: number };
@@ -90,9 +85,7 @@ function PriorityCell({ data }: ICellRendererParams<Row>) {
   const p = data?.dispute ? priorityOf(data) : null;
   if (!p?.label) return null;
   return (
-    <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: p.label === "Urgent" ? "var(--danger)" : "var(--offer)", border: "1px solid currentColor" }}>
-      {p.label}
-    </span>
+    <Badge tone={p.label === "Urgent" ? "bad" : "warn"}>{p.label}</Badge>
   );
 }
 
@@ -157,6 +150,22 @@ function DetailRow({ data }: ICellRendererParams<Row>) {
   );
 }
 
+// The one thing the seller should do next on this dispute.
+function NextStepCell({ data }: ICellRendererParams<Row>) {
+  if (!data) return null;
+  const go = (label: string, primary = false) => (
+    <Link href={`/cases/${data.id}`} className={primary ? BUTTON.primary : BUTTON.secondary}>
+      {label}
+    </Link>
+  );
+  if (data.outcome) return go("View");
+  if (data.status === "ANALYZING") return <span className="text-xs text-muted">Agent working...</span>;
+  if (data.submitted) return go("Track");
+  if (data.status === "READY") return go("Review", true);
+  if (data.status === "ERROR") return go("Retry", true);
+  return go("Investigate", true);
+}
+
 function AgentCell({ data }: ICellRendererParams<Row>) {
   if (!data) return null;
   const r = data.recommendation;
@@ -164,7 +173,7 @@ function AgentCell({ data }: ICellRendererParams<Row>) {
   return (
     <div className="flex h-full items-center gap-3">
       {data.submitted?.by === "autopilot" ? (
-        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent" title={data.autopilot?.reason}>Autopilot</span>
+        <Badge tone="info" title={data.autopilot?.reason}>Autopilot</Badge>
       ) : null}
       {decided ? (
         <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ color: DECISION_COLOR[decided], border: `1px solid ${DECISION_COLOR[decided]}` }}>
@@ -191,13 +200,9 @@ function AgentCell({ data }: ICellRendererParams<Row>) {
 
 export default function Inbox() {
   const router = useRouter();
-  const [data, setData] = useState<Payload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { data, error, rules } = useCases();
   const [search, setSearch] = useState("");
   const [totals, setTotals] = useState<Totals | null>(null);
-  const [shown, setShown] = useState<CaseRecord[]>([]);
-  const [claim, setClaim] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const grid = useRef<AgGridReact<Row>>(null);
 
@@ -223,63 +228,10 @@ export default function Inbox() {
     const visible: CaseRecord[] = [];
     api.forEachNodeAfterFilter((n) => n.data && !n.data.detail && visible.push(n.data));
     const next = totalsOf(visible);
-    setShown((cur) => (cur.length === visible.length && cur.every((c, i) => c === visible[i]) ? cur : visible));
     // Only update on a real change, so setting the pinned row can't loop back here.
     setTotals((cur) => (cur && JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
   }, []);
 
-  function exportCsv() {
-    grid.current?.api.exportDataAsCsv({
-      fileName: `rebuttal-outcomes-${new Date().toISOString().slice(0, 10)}.csv`,
-      columnKeys: ["id", "buyer", "claim", "stage", "amountUsd", "decision", "status", "kept", "refunded", "win"],
-      skipPinnedBottom: true,
-      shouldRowBeSkipped: (p) => isDetail(p.node),
-    });
-  }
-
-  const load = useCallback(async () => {
-    const res = await fetch("/api/cases", { cache: "no-store" });
-    const json = await res.json();
-    if (!res.ok) setError(json.error);
-    else {
-      setError(null);
-      setData(json);
-    }
-  }, []);
-
-  // Poll quickly while autopilot is working on a dispute, so its alerts show up live.
-  const working = Boolean(data?.cases.some((c) => c.status === "ANALYZING"));
-  useEffect(() => {
-    load();
-    const t = setInterval(load, working ? 1500 : 8000);
-    return () => clearInterval(t);
-  }, [load, working]);
-
-  // The simulated buyer files a dispute and PayPal's webhook reaches the agent; the seller
-  // stays on the inbox and watches autopilot handle it.
-  async function fileDispute() {
-    setBusy(true);
-    const res = await fetch("/api/demo/dispute", { method: "POST" });
-    const json = await res.json();
-    setBusy(false);
-    if (!res.ok) return setError(json.error);
-    setError(null);
-    load();
-  }
-
-  async function switchMode(mode: "mock" | "sandbox") {
-    if (mode === data?.mode) return;
-    const res = await fetch("/api/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
-    const json = await res.json();
-    if (!res.ok) return setError(json.error);
-    setData(null);
-    load();
-  }
-
-  async function reset() {
-    await fetch("/api/demo/reset", { method: "POST" });
-    load();
-  }
 
   const cols = useMemo<ColDef<Row>[]>(
     () => [
@@ -303,7 +255,7 @@ export default function Inbox() {
         cellRenderer: BuyerCell,
         cellRendererSelector: pinned(TotalsLabel),
         flex: 1.6,
-        minWidth: 220,
+        minWidth: 190,
         valueGetter: (p) => p.data?.dispute?.disputed_transactions[0]?.buyer?.name,
         getQuickFilterText: (p) => {
           const t = p.data?.dispute?.disputed_transactions[0];
@@ -316,7 +268,7 @@ export default function Inbox() {
         cellRenderer: ReasonCell,
         cellRendererSelector: pinned(blank),
         flex: 0.9,
-        minWidth: 140,
+        minWidth: 120,
         valueGetter: (p) => p.data?.dispute && REASON_LABEL[p.data.dispute.reason],
         filter: "agTextColumnFilter",
         floatingFilter: true,
@@ -325,7 +277,7 @@ export default function Inbox() {
         colId: "stage",
         headerName: "Stage",
         flex: 0.7,
-        minWidth: 120,
+        minWidth: 100,
         valueGetter: (p) => stageOf(p.data),
         cellRendererSelector: pinned(blank),
         filter: "agTextColumnFilter",
@@ -336,7 +288,7 @@ export default function Inbox() {
         colId: "amount",
         headerName: "Amount",
         flex: 0.8,
-        minWidth: 120,
+        minWidth: 100,
         type: "rightAligned",
         valueGetter: (p) => (p.data?.dispute ? Number(p.data.dispute.dispute_amount.value) : undefined),
         valueFormatter: (p) => (p.value == null ? "" : money(p.value)),
@@ -352,17 +304,17 @@ export default function Inbox() {
         cellRenderer: PriorityCell,
         cellRendererSelector: pinned(blank),
         flex: 0.6,
-        minWidth: 100,
+        minWidth: 96,
         valueGetter: (p) => (p.data?.dispute ? priorityOf(p.data).score : undefined),
         sort: "desc",
       },
       {
         colId: "due",
-        headerName: "Respond within",
+        headerName: "Due in",
         cellRenderer: DueCell,
         cellRendererSelector: pinned(blank),
         flex: 0.8,
-        minWidth: 130,
+        minWidth: 110,
         valueGetter: (p) => (p.data?.submitted ? 999 : daysLeft(p.data?.dispute?.seller_response_due_date)),
       },
       {
@@ -373,10 +325,19 @@ export default function Inbox() {
         // Autopilot and PayPal change these on their own; flash the cell so the seller notices.
         enableCellChangeFlash: true,
         flex: 1.8,
-        minWidth: 280,
+        minWidth: 220,
         valueGetter: (p) => (p.data?.dispute ? statusLabel(p.data) : undefined),
       },
-      // Export-only columns for the outcomes CSV.
+      {
+        colId: "next",
+        headerName: "Next step",
+        width: 120,
+        minWidth: 120,
+        sortable: false,
+        cellRenderer: NextStepCell,
+        cellRendererSelector: pinned(blank),
+      },
+      // Export-only columns for the outcomes CSV (Insights exports the same data).
       { colId: "decision", headerName: "Decision", hide: true, valueGetter: (p) => { const d = p.data?.submitted?.decision ?? p.data?.recommendation?.decision; return d ? DECISION_LABEL[d] : ""; } },
       { colId: "status", headerName: "Status", hide: true, valueGetter: (p) => (p.data?.dispute ? statusLabel(p.data) : "") },
       // Export-only columns: plain numbers so the CSV adds up in a spreadsheet. Open cases count as 0 kept and 0 refunded.
@@ -398,13 +359,6 @@ export default function Inbox() {
     [],
   );
 
-  // Clicking a bar in the chart filters the grid's Claim column, and clearing it unfilters.
-  const filterClaim = useCallback(async (value: string | null) => {
-    const api = grid.current?.api;
-    if (!api) return;
-    await api.setColumnFilterModel("claim", value ? { filterType: "text", type: "equals", filter: value } : null);
-    api.onFilterChanged();
-  }, []);
 
   // Keep the seller's column layout (order, widths, sort) between visits.
   const saveColumns = useCallback((api: GridApi<Row>) => {
@@ -420,78 +374,34 @@ export default function Inbox() {
   }, []);
 
   const s = data?.stats;
+  const auto = rules?.enabled;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Disputes</h1>
-          <p className="text-sm text-muted">The agent investigates each dispute as PayPal reports it and recommends a response. Nothing goes to PayPal without your approval, except what your autopilot rules allow.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {data?.sandboxAvailable ? (
-            <div className="flex rounded-md border border-line p-0.5 text-sm" role="group" aria-label="PayPal mode">
-              {(["mock", "sandbox"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => switchMode(m)}
-                  aria-pressed={data.mode === m}
-                  className={`rounded px-3 py-1.5 ${data.mode === m ? "bg-accent font-semibold text-panel" : "text-muted hover:text-ink"}`}
-                >
-                  {m === "mock" ? "Simulator" : "Live PayPal sandbox"}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {data?.mode === "mock" ? (
-            <button onClick={reset} className="rounded-md px-3 py-2 text-sm text-muted hover:text-ink">Reset demo</button>
-          ) : null}
-          {/* Live sandbox disputes can only be filed by a sandbox buyer on paypal.com. */}
-          {data?.mode === "mock" ? (
-            <button onClick={fileDispute} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-panel disabled:opacity-60">
-              {busy ? "Filing..." : "Simulate a new dispute"}
-            </button>
-          ) : null}
-        </div>
+    <div className="space-y-5">
+      <WelcomeTour />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Disputes</h1>
+        <p className="text-sm text-muted">The agent investigates each dispute as PayPal reports it and ranks them by money and deadline. Nothing goes to PayPal without your approval, except what your autopilot rules allow.</p>
       </div>
-
-      {data?.mode === "mock" ? (
-        <p className="rounded-md border border-line bg-panel px-3 py-2 text-sm text-muted">
-          Simulator: your own private copy of the demo, so other visitors don&apos;t see your clicks and Reset demo only resets yours. PayPal is simulated in memory, so every step works, including offers, refunds and PayPal&apos;s ruling. The AI investigations are real Gemini runs, replayed from a saved copy to stay within the free tier (Re-run calls the model live).
-          {data.sandboxAvailable ? " Switch to Live PayPal sandbox to see real sandbox disputes." : " Set sandbox credentials to run against the PayPal sandbox."}
-        </p>
-      ) : data?.mode === "sandbox" ? (
-        <p className="rounded-md border border-line bg-panel px-3 py-2 text-sm text-muted">
-          Live PayPal sandbox: disputes come from real sandbox buyers through the PayPal Agent Toolkit. The sandbox opens every dispute as a chargeback, where PayPal allows no offers, and refunds need a seller balance, so use the Simulator for those steps.
-          {data.viewOnly ? " On the hosted demo the live sandbox is view-only, because every visitor shares the same PayPal account." : ""}
+      {data ? (
+        <p className="text-xs text-muted">
+          {data.mode === "mock"
+            ? "Simulator: your own private copy of the demo with simulated PayPal. AI investigations are real Gemini runs, replayed to stay within the free tier."
+            : `Live PayPal sandbox: real sandbox disputes through the PayPal Agent Toolkit.${data.viewOnly ? " View-only on the hosted demo." : ""}`}
         </p>
       ) : null}
       {error ? <p className="rounded-md border border-danger px-3 py-2 text-sm text-danger">{error}</p> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-tour="kpis">
         <Kpi label="Money at risk" value={s ? money(s.at_risk) : "-"} sub={s ? `${s.open} open dispute${s.open === 1 ? "" : "s"}` : undefined} />
-        <Kpi
-          label="Due within 3 days"
-          value={s ? String(s.due_soon) : "-"}
-          sub={s?.due_soon ? `${money(s.due_soon_amount)} at stake` : "Nothing urgent"}
-          danger={Boolean(s?.due_soon)}
-        />
-        <Kpi label="Money protected" value={s ? money(s.kept) : "-"} accent sub={s?.rulings ? `Won ${s.won} of ${s.rulings} PayPal ruling${s.rulings === 1 ? "" : "s"}` : "No PayPal rulings yet"} />
-        <Kpi
-          label="Hours saved"
-          value={s ? `${s.hours_saved}h` : "-"}
-          sub={s ? `Est. 45 min of manual work per dispute` : undefined}
-        />
-        <Kpi label="Handled by autopilot" value={s ? `${s.autopilot} of ${s.answered}` : "-"} sub="Responses sent without you" />
+        <Kpi label="Due within 3 days" value={s ? String(s.due_soon) : "-"} sub={s?.due_soon ? `${money(s.due_soon_amount)} at stake` : "Nothing urgent"} tone={s?.due_soon ? "bad" : undefined} />
+        <Kpi label="Money protected" value={s ? money(s.kept) : "-"} tone="good" sub={s?.rulings ? `Won ${s.won} of ${s.rulings} PayPal ruling${s.rulings === 1 ? "" : "s"}` : "No PayPal rulings yet"} />
+        <Kpi label="Autopilot" value={rules ? (auto ? "On" : "Off") : "-"} tone={auto ? "good" : "neutral"} sub={s ? `Handled ${s.autopilot} of ${s.answered} responses` : undefined} />
       </div>
 
-      <AutopilotPanel cases={data?.cases ?? []} mode={data?.mode} viewOnly={Boolean(data?.viewOnly)} />
-
-      <IncidentsPanel mode={data?.mode} refreshKey={(data?.cases ?? []).map((c) => c.updated_at).join("|")} />
-
-      {data?.mode === "mock" ? <ShieldPanel key={data.cases.length ? "on" : "reset"} viewOnly={Boolean(data.viewOnly)} /> : null}
-
-      <InboxCharts shown={shown} activeClaim={claim} onClaim={filterClaim} />
+      <Card title="Latest alerts" subtitle="PayPal webhooks and what autopilot did with them." right={<Link href="/insights" className="text-xs text-accent underline">Full history</Link>}>
+        <AlertsFeed cases={data?.cases ?? []} mode={data?.mode} limit={3} />
+      </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <input
@@ -502,16 +412,15 @@ export default function Inbox() {
           aria-label="Search disputes"
           className="w-full max-w-sm rounded-md border border-line bg-panel px-3 py-2 text-sm"
         />
-        <button onClick={exportCsv} disabled={!data?.cases.length} className="rounded-md border border-line px-3 py-2 text-sm disabled:opacity-50">
-          Export outcomes (CSV)
-        </button>
+        <span className="text-xs text-muted">Click ▶ for the agent&apos;s reasoning, or a row to open the dispute.</span>
       </div>
 
-      <div className="h-[480px]">
+      <div data-tour="grid">
         <AgGridReact<Row>
           ref={grid}
           theme={gridTheme}
           rowHeight={64}
+          domLayout="autoHeight"
           rowData={rows}
           context={context}
           isFullWidthRow={(p) => isDetail(p.rowNode)}
@@ -545,12 +454,8 @@ export default function Inbox() {
           getRowClass={(p) => (p.node.rowPinned ? "font-medium" : isDetail(p.node) ? undefined : "cursor-pointer")}
           defaultColDef={{ cellStyle: { display: "flex", alignItems: "center" } }}
           onRowDataUpdated={(e) => refreshTotals(e.api)}
-          onFilterChanged={(e) => {
-            refreshTotals(e.api);
-            const m = e.api.getColumnFilterModel("claim") as { type?: string; filter?: string } | null;
-            setClaim(m?.type === "equals" ? m.filter ?? null : null);
-          }}
-          overlayNoRowsTemplate="No disputes. File a test dispute to try the flow."
+          onFilterChanged={(e) => refreshTotals(e.api)}
+          overlayNoRowsTemplate="No disputes yet. Open Simulator tools to file a test dispute."
           suppressCellFocus
         />
       </div>
@@ -558,12 +463,3 @@ export default function Inbox() {
   );
 }
 
-function Kpi({ label, value, sub, accent, danger }: { label: string; value: string; sub?: string; accent?: boolean; danger?: boolean }) {
-  return (
-    <div className="rounded-lg border border-line bg-panel px-4 py-3">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular" style={accent ? { color: "var(--accent)" } : danger ? { color: "var(--danger)" } : undefined}>{value}</div>
-      {sub ? <div className="text-xs text-muted">{sub}</div> : null}
-    </div>
-  );
-}

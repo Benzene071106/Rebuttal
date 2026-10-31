@@ -24,14 +24,22 @@ The **dispute shield** works before a dispute exists. When an order is paid, the
 - An expired access token is replaced with a fresh PayPal sign-in and the call repeated.
 - Anything PayPal refused for a business reason, like a refund with `INSUFFICIENT_FUNDS` (which our live sandbox seller really returned), is not retried. Gemini diagnoses it in plain words and either pauses the case with steps for the seller or proposes another response.
 
-A proposal always waits for the seller's approval. The agent never changes code and never widens the seller's limits. Every incident lands in an AG Grid log with each attempt and the diagnosis. In the simulator, **Break PayPal's next call** injects an outage, an expired token or insufficient funds, so you can watch it recover.
+A proposal always waits for the seller's approval. The agent never changes code and never widens the seller's limits. Every incident lands in an AG Grid log with each attempt and the diagnosis. In the simulator, **Simulator tools → Break PayPal's next call** injects an outage, an expired token or insufficient funds, so you can watch it recover.
 
-The inbox is built on **AG Grid** and **AG Charts** (both Community, free):
+The app has three pages, so a seller sees what matters first:
 
-- Two charts above the queue, **money by claim type** and **what the agent decided**, are drawn from the rows the grid is showing. Search or filter the grid and the charts follow. Click a bar and the grid filters to that claim type.
+- **Disputes** (home): money at risk, what's due within 3 days, money protected and whether autopilot is on, the latest alerts, and the ranked dispute queue with one **Next step** per row. Click a row for the full case.
+- **Protect**: the dispute shield on paid orders and a dispute-memory grid of every buyer who has disputed, flagged when they order again.
+- **Insights**: savings, linked charts over an outcomes ledger, the self-healing incident log and the full autopilot history.
+
+Autopilot rules live in a drawer (**Autopilot rules**, top right), demo controls in **Simulator tools**, and first-time visitors get a 3-step tour.
+
+The grids and charts are **AG Grid** and **AG Charts** (both Community, free):
+
+- Two charts on Insights, **money by claim type** and **what the agent decided**, are drawn from the rows the outcomes grid is showing. Filter the grid and the charts follow. Click a bar and the grid filters to that claim type.
 - Each dispute row expands into a full-width row with the agent's headline, its win estimate and the facts for and against the seller, so the seller can triage without opening the case.
 - Cells flash when autopilot or PayPal changes a dispute, and the seller's column order, widths and sort are kept between visits.
-- The dispute shield is a second grid, sorted by risk, with a risk badge and score bar in each row and the agent's findings in an expandable detail row.
+- On Protect, the dispute shield is a grid sorted by risk, with a risk badge and score bar in each row and the agent's findings in an expandable detail row.
 
 The inbox works as a triage queue: disputes are ranked by money at risk and days left before PayPal's response deadline, and a savings dashboard shows money protected, hours saved and how many disputes autopilot closed.
 
@@ -41,7 +49,7 @@ Built for the [Build What's Next with PayPal and AI](https://paypalaihackathon.d
 
 ## Try it (no PayPal login needed)
 
-The demo opens on the **Simulator**. Click **Simulate a new dispute**: a simulated buyer files a $28 claim, the simulator delivers the same `CUSTOMER.DISPUTE.CREATED` webhook PayPal would, the agent investigates, and autopilot refunds it within your $30 rule. Watch the **Alerts** feed. Set **Send evidence on its own** to 90% and simulate again to see autopilot fight a signed-delivery case. Open a dispute and the agent starts investigating (a saved real Gemini run, replayed). Approve its recommendation, and a few seconds later the simulator plays PayPal's side: the ruling on a fight, or the buyer accepting an offer. Click **PayPal rules for buyer** during the countdown to see a loss instead. Open the $96 mug dispute and click **Let the agent negotiate** to watch the agent haggle with a simulated buyer. Below the alerts, the **Dispute shield** checks three paid orders; click a row to see what the agent found and what to do before shipping. **Reset demo** starts over. In the inbox, search or filter by claim, stage and amount; the pinned totals row tracks money at risk and kept for whatever is shown, and **Export outcomes (CSV)** downloads the ledger with plain-number amounts. The toggle at the top switches to **Live PayPal sandbox**, which shows real disputes filed by sandbox buyers.
+The demo opens on the **Simulator**. Open **Simulator tools** and click **Simulate a new dispute**: a simulated buyer files a $28 claim, the simulator delivers the same `CUSTOMER.DISPUTE.CREATED` webhook PayPal would, the agent investigates, and autopilot refunds it within your $30 rule. Watch **Latest alerts**. In **Autopilot rules**, set **Send evidence on its own** to 90% and simulate again to see autopilot fight a signed-delivery case. Open a dispute and the agent starts investigating (a saved real Gemini run, replayed). Approve its recommendation, and a few seconds later the simulator plays PayPal's side: the ruling on a fight, or the buyer accepting an offer. Click **PayPal rules for buyer** during the countdown to see a loss instead. Open the $96 mug dispute and click **Let the agent negotiate** to watch the agent haggle with a simulated buyer. On the **Protect** tab, the **Dispute shield** checks three paid orders; click a row to see what the agent found and what to do before shipping. **Simulator tools → Reset demo** starts over. On Disputes, search or filter by claim, stage and amount; the pinned totals row tracks money at risk and kept for whatever is shown. On **Insights**, **Export outcomes (CSV)** downloads the ledger with plain-number amounts. The toggle at the top switches to **Live PayPal sandbox**, which shows real disputes filed by sandbox buyers.
 
 Each browser gets its own simulator, kept by a cookie: several judges can try the demo at once without seeing each other's clicks, and **Reset demo** resets only yours. The live sandbox is one shared PayPal account, so on a production server it is view-only (cases, saved investigations and outcomes); set `LIVE_SANDBOX_WRITABLE=1` to approve and rule on live disputes, as local development does by default.
 
@@ -147,14 +155,18 @@ src/lib/negotiation.ts      AI negotiator: haggles a partial refund inside the s
 src/lib/shield.ts           Dispute shield: risk check on paid orders, with dispute memory
 src/lib/recovery.ts         Self-healing PayPal calls: read PayPal's error, retry/refresh, or AI diagnosis
 src/lib/demo/scenarios.ts   Demo shop data: listings, messages, carrier scans
-src/components/Inbox.tsx    Dispute inbox (AG Grid: search, column filters, live totals row, expandable reasoning rows, cell flash, saved layout, CSV export)
+src/components/Inbox.tsx    Disputes home: KPIs, latest alerts, ranked queue (AG Grid: search, column filters, live totals row, expandable reasoning rows, cell flash, saved layout, next step)
+src/components/Protect.tsx  Protect page: dispute shield and dispute memory grid
+src/components/Insights.tsx Insights page: savings, linked charts, outcomes ledger with CSV export, incidents, autopilot history
+src/components/TopBar.tsx   Three-tab nav, Simulator tools menu, Autopilot rules drawer
+src/components/CasesProvider.tsx  One shared poller for disputes, stats and rules
 src/components/InboxCharts.tsx  AG Charts that follow the grid's filters; clicking a bar filters the grid
 src/components/EvidenceGrid.tsx  Evidence trail: each fact, its PayPal evidence type and source tool (AG Grid)
 src/components/CaseView.tsx Live investigation, recommendation, approval
 src/components/WhyPanel.tsx Why this decision: facts for and against, expected money per option
-src/components/AutopilotPanel.tsx  Autopilot rules and the alerts feed
+src/components/AutopilotPanel.tsx  Autopilot rules form and the alerts feed
 src/components/NegotiationPanel.tsx  Negotiation transcript with the agent's reasoning
-src/components/IncidentsPanel.tsx  Self-healing incident log (AG Grid) and the simulator's fault switch
+src/components/IncidentsPanel.tsx  Self-healing incident log (AG Grid)
 src/components/ShieldPanel.tsx  Dispute shield: paid orders and their risk (AG Grid with risk renderers and detail rows)
 ```
 
