@@ -1,9 +1,99 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ShieldRow } from "@/lib/shield";
+import { money } from "./format";
+import { gridTheme } from "./grid";
 
 const RISK_COLOR = { HIGH: "var(--danger)", MEDIUM: "var(--offer)", LOW: "var(--fight)" } as const;
+
+type ShieldGridRow = ShieldRow & { detail?: true };
+type Ctx = { open: string | null; recheck: (id: string) => void; viewOnly: boolean };
+
+function BuyerCell({ data }: ICellRendererParams<ShieldGridRow>) {
+  return (
+    <div className="flex min-w-0 flex-col leading-tight">
+      <span className="font-medium">{data?.buyer}</span>
+      <span className="truncate text-xs text-muted" title={data?.item}>{data?.item}</span>
+    </div>
+  );
+}
+
+function RiskCell({ data }: ICellRendererParams<ShieldGridRow>) {
+  if (!data) return null;
+  if (data.status === "CHECKING") return <span className="text-xs text-muted">Checking… {data.trace.at(-1)?.tool ? `(${data.trace.at(-1)!.tool})` : ""}</span>;
+  if (data.status === "ERROR") return <span className="text-xs text-danger" title={data.error}>Check failed</span>;
+  const v = data.verdict;
+  if (!v) return null;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: RISK_COLOR[v.risk], border: "1px solid currentColor" }}>{v.risk}</span>
+      <span className="inline-block h-1.5 w-14 overflow-hidden rounded-full bg-line">
+        <span className="block h-full rounded-full" style={{ width: `${Math.round(v.score)}%`, background: RISK_COLOR[v.risk] }} />
+      </span>
+      <span className="text-xs text-muted tabular">{Math.round(v.score)}</span>
+    </span>
+  );
+}
+
+function ExpandCell({ data, context }: ICellRendererParams<ShieldGridRow>) {
+  if (!data?.verdict) return null;
+  const open = (context as Ctx).open === data.order_id;
+  return <span className="inline-block text-muted transition-transform" style={{ transform: open ? "rotate(90deg)" : undefined }} aria-hidden>▶</span>;
+}
+
+const COLS: ColDef<ShieldGridRow>[] = [
+  { colId: "expand", headerName: "", width: 44, maxWidth: 44, sortable: false, resizable: false, cellRenderer: ExpandCell },
+  { field: "invoice_id", headerName: "Order", width: 92, cellClass: "text-muted tabular" },
+  { colId: "buyer", headerName: "Buyer", valueGetter: (p) => p.data?.buyer, cellRenderer: BuyerCell, flex: 1.1, minWidth: 160 },
+  { field: "ship_to", headerName: "Ships to", flex: 1.2, minWidth: 160, tooltipField: "ship_to", cellRenderer: (p: ICellRendererParams<ShieldGridRow>) => <span className="truncate text-muted">{p.value}</span> },
+  { colId: "amount", headerName: "Amount", width: 110, type: "rightAligned", valueGetter: (p) => Number(p.data?.amount ?? 0), valueFormatter: (p) => money(p.value), cellClass: "tabular font-medium justify-end" },
+  { colId: "risk", headerName: "Dispute risk", width: 190, valueGetter: (p) => p.data?.verdict?.score ?? -1, cellRenderer: RiskCell, sort: "desc" },
+  { colId: "headline", headerName: "Agent's read", valueGetter: (p) => p.data?.verdict?.headline ?? "", flex: 2, minWidth: 220, tooltipValueGetter: (p) => p.value, cellRenderer: (p: ICellRendererParams<ShieldGridRow>) => <span className="truncate">{p.value}</span> },
+];
+
+// What the agent found and what to do before shipping, under the order's row.
+function ShieldDetail({ data, context }: ICellRendererParams<ShieldGridRow>) {
+  const v = data?.verdict;
+  if (!data || !v) return null;
+  const { recheck, viewOnly } = context as Ctx;
+  return (
+    <div className="grid h-full gap-4 overflow-auto whitespace-normal border-l-4 bg-bg px-6 py-3 leading-normal md:grid-cols-2" style={{ borderColor: RISK_COLOR[v.risk] }}>
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">What the agent found</h3>
+        <ul className="mt-1 space-y-1 text-sm">
+          {v.signals.map((s, i) => (
+            <li key={i} className="flex gap-2 leading-snug">
+              <span className="font-semibold" style={{ color: s.effect === "RAISES" ? "var(--danger)" : "var(--fight)" }}>{s.effect === "RAISES" ? "▲" : "▼"}</span>
+              <span>
+                {s.finding} <span className="text-xs text-muted">({s.source})</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Before you ship</h3>
+        <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm leading-snug">
+          {v.actions.map((a, i) => (
+            <li key={i}>{a}</li>
+          ))}
+        </ol>
+        <p className="mt-2 text-xs text-muted">
+          {data.model} · {data.trace.filter((t) => t.kind === "tool").map((t) => t.tool).join(", ")}
+          {viewOnly ? null : (
+            <>
+              {" · "}
+              <button onClick={() => recheck(data.order_id)} className="underline hover:text-ink">Re-check</button>
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // Dispute shield: paid orders waiting to ship, each checked by the agent for dispute
 // risk before the seller ships it, using the buyer's dispute history with the shop.
@@ -11,6 +101,11 @@ export default function ShieldPanel({ viewOnly }: { viewOnly: boolean }) {
   const [orders, setOrders] = useState<ShieldRow[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const grid = useRef<AgGridReact<ShieldGridRow>>(null);
+  // The chevrons read `open` from the grid context, so redraw them when it changes.
+  useEffect(() => {
+    grid.current?.api?.refreshCells({ columns: ["expand"], force: true });
+  }, [open]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/orders", { cache: "no-store" });
@@ -40,6 +135,7 @@ export default function ShieldPanel({ viewOnly }: { viewOnly: boolean }) {
   if (!orders?.length) return null;
   const flagged = orders.filter((o) => o.verdict && o.verdict.risk !== "LOW");
   const held = flagged.reduce((n, o) => n + Number(o.amount), 0);
+  const rows: ShieldGridRow[] = orders.flatMap((o) => (open === o.order_id && o.verdict ? [o, { ...o, detail: true as const }] : [o]));
 
   return (
     <section className="rounded-lg border border-line bg-panel p-4">
@@ -56,74 +152,32 @@ export default function ShieldPanel({ viewOnly }: { viewOnly: boolean }) {
       </div>
       {error ? <p className="mt-2 text-xs text-danger">{error}</p> : null}
 
-      <ul className="mt-3 divide-y divide-line">
-        {orders.map((o) => {
-          const v = o.verdict;
-          const expanded = open === o.order_id;
-          return (
-            <li key={o.order_id} className="py-2.5">
-              <button onClick={() => setOpen(expanded ? null : o.order_id)} className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-left" aria-expanded={expanded}>
-                <span className="w-20 text-xs text-muted tabular">{o.invoice_id}</span>
-                <span className="min-w-40 flex-1">
-                  <span className="block text-sm font-medium">{o.buyer}</span>
-                  <span className="block truncate text-xs text-muted">{o.item} · ships to {o.ship_to}</span>
-                </span>
-                <span className="w-20 text-right text-sm font-semibold tabular">${Number(o.amount).toFixed(2)}</span>
-                <span className="w-56 text-right">
-                  {o.status === "CHECKING" ? (
-                    <span className="text-xs text-muted">Checking… {o.trace.at(-1)?.tool ? `(${o.trace.at(-1)!.tool})` : ""}</span>
-                  ) : o.status === "ERROR" ? (
-                    <span className="text-xs text-danger">Check failed</span>
-                  ) : v ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: RISK_COLOR[v.risk], border: "1px solid currentColor" }}>
-                        {v.risk} risk
-                      </span>
-                      <span className="text-xs text-muted tabular">{Math.round(v.score)}/100</span>
-                    </span>
-                  ) : null}
-                </span>
-              </button>
-              {v && o.status === "READY" ? <p className="mt-1 pl-24 text-sm">{v.headline}</p> : null}
-              {o.status === "ERROR" ? <p className="mt-1 pl-24 text-xs text-muted">{o.error}</p> : null}
-              {expanded && v ? (
-                <div className="mt-2 grid gap-3 pl-24 md:grid-cols-2">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">What the agent found</h3>
-                    <ul className="mt-1 space-y-1 text-sm">
-                      {v.signals.map((s, i) => (
-                        <li key={i} className="flex gap-2">
-                          <span className="font-semibold" style={{ color: s.effect === "RAISES" ? "var(--danger)" : "var(--fight)" }}>{s.effect === "RAISES" ? "▲" : "▼"}</span>
-                          <span>
-                            {s.finding} <span className="text-xs text-muted">({s.source})</span>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Before you ship</h3>
-                    <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm">
-                      {v.actions.map((a, i) => (
-                        <li key={i}>{a}</li>
-                      ))}
-                    </ol>
-                    <p className="mt-2 text-xs text-muted">
-                      {o.model} · {o.trace.filter((t) => t.kind === "tool").map((t) => t.tool).join(", ")}
-                      {viewOnly ? null : (
-                        <>
-                          {" · "}
-                          <button onClick={() => recheck(o.order_id)} className="underline hover:text-ink">Re-check</button>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+      <div className="mt-3">
+        <AgGridReact<ShieldGridRow>
+          ref={grid}
+          theme={gridTheme}
+          rowData={rows}
+          columnDefs={COLS}
+          context={{ open, recheck, viewOnly }}
+          domLayout="autoHeight"
+          getRowId={(p) => `${p.data.order_id}${p.data.detail ? ":detail" : ""}`}
+          isFullWidthRow={(p) => Boolean(p.rowNode.data?.detail)}
+          fullWidthCellRenderer={ShieldDetail}
+          getRowHeight={(p) => (p.data?.detail ? 216 : 64)}
+          // Highest risk first; a detail row sorts with its order and stays right under it.
+          postSortRows={(p) => {
+            const ordered = p.nodes.filter((n) => !n.data?.detail).flatMap((n) => {
+              const d = p.nodes.find((x) => x.data?.detail && x.data.order_id === n.data?.order_id);
+              return d ? [n, d] : [n];
+            });
+            p.nodes.splice(0, p.nodes.length, ...ordered);
+          }}
+          onRowClicked={(e) => e.data && !e.data.detail && e.data.verdict && setOpen(open === e.data.order_id ? null : e.data.order_id)}
+          getRowClass={(p) => (p.data?.detail ? undefined : "cursor-pointer")}
+          defaultColDef={{ cellStyle: { display: "flex", alignItems: "center" }, sortable: true }}
+          suppressCellFocus
+        />
+      </div>
     </section>
   );
 }

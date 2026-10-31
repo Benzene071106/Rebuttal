@@ -18,6 +18,13 @@ The **dispute shield** works before a dispute exists. When an order is paid, the
 - A repeat buyer's $58 prints are **LOW**.
 - A new $148 order from the buyer who is disputing a signed-for tote right now is **HIGH**, with the signature evidence quoted back.
 
+The inbox is built on **AG Grid** and **AG Charts** (both Community, free):
+
+- Two charts above the queue, **money by claim type** and **what the agent decided**, are drawn from the rows the grid is showing. Search or filter the grid and the charts follow. Click a bar and the grid filters to that claim type.
+- Each dispute row expands into a full-width row with the agent's headline, its win estimate and the facts for and against the seller, so the seller can triage without opening the case.
+- Cells flash when autopilot or PayPal changes a dispute, and the seller's column order, widths and sort are kept between visits.
+- The dispute shield is a second grid, sorted by risk, with a risk badge and score bar in each row and the agent's findings in an expandable detail row.
+
 The inbox works as a triage queue: disputes are ranked by money at risk and days left before PayPal's response deadline, and a savings dashboard shows money protected, hours saved and how many disputes autopilot closed.
 
 Built for the [Build What's Next with PayPal and AI](https://paypalaihackathon.devpost.com/) hackathon.
@@ -131,13 +138,14 @@ src/lib/rules.ts            Seller autopilot rules and guardrails
 src/lib/negotiation.ts      AI negotiator: haggles a partial refund inside the seller's ceiling
 src/lib/shield.ts           Dispute shield: risk check on paid orders, with dispute memory
 src/lib/demo/scenarios.ts   Demo shop data: listings, messages, carrier scans
-src/components/Inbox.tsx    Dispute inbox (AG Grid: search, column filters, live totals row, CSV export)
+src/components/Inbox.tsx    Dispute inbox (AG Grid: search, column filters, live totals row, expandable reasoning rows, cell flash, saved layout, CSV export)
+src/components/InboxCharts.tsx  AG Charts that follow the grid's filters; clicking a bar filters the grid
 src/components/EvidenceGrid.tsx  Evidence trail: each fact, its PayPal evidence type and source tool (AG Grid)
 src/components/CaseView.tsx Live investigation, recommendation, approval
 src/components/WhyPanel.tsx Why this decision: facts for and against, expected money per option
 src/components/AutopilotPanel.tsx  Autopilot rules and the alerts feed
 src/components/NegotiationPanel.tsx  Negotiation transcript with the agent's reasoning
-src/components/ShieldPanel.tsx  Dispute shield: paid orders and their risk
+src/components/ShieldPanel.tsx  Dispute shield: paid orders and their risk (AG Grid with risk renderers and detail rows)
 ```
 
 ## License

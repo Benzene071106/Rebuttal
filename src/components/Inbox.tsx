@@ -1,12 +1,14 @@
 "use client";
 
-import type { ColDef, GridApi, ICellRendererParams } from "ag-grid-community";
+import type { ColDef, ColumnState, GridApi, ICellRendererParams, IRowNode } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseRecord } from "@/lib/types";
 import AutopilotPanel from "./AutopilotPanel";
+import InboxCharts from "./InboxCharts";
 import ShieldPanel from "./ShieldPanel";
+import Link from "next/link";
 import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
 import { gridTheme } from "./grid";
 
@@ -18,7 +20,11 @@ type Payload = { mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?
 
 // The pinned bottom row carries totals for whatever rows the search and filters leave visible.
 type Totals = { count: number; atRisk: number; kept: number; refunded: number };
-type Row = CaseRecord & { totals?: Totals };
+// A detail row is a full-width copy of its case, placed right under it, that shows the
+// agent's reasoning. It carries the case's own values so it passes the same filters.
+type Row = CaseRecord & { totals?: Totals; detail?: true };
+const isDetail = (n?: IRowNode<Row> | null) => Boolean(n?.data?.detail);
+const COL_STATE_KEY = "rebuttal.inbox.columns.v1";
 
 const STAGE_LABEL: Record<string, string> = { INQUIRY: "Inquiry", CHARGEBACK: "Chargeback", PRE_ARBITRATION: "Pre-arbitration", ARBITRATION: "Arbitration" };
 const stageOf = (c?: CaseRecord) => (c?.dispute ? STAGE_LABEL[c.dispute.dispute_life_cycle_stage] ?? c.dispute.dispute_life_cycle_stage : undefined);
@@ -89,6 +95,67 @@ function PriorityCell({ data }: ICellRendererParams<Row>) {
   );
 }
 
+function ExpandCell({ data, context }: ICellRendererParams<Row>) {
+  if (!data || data.detail) return null;
+  const open = (context as GridContext).expanded.has(data.id);
+  return (
+    <button
+      aria-label={open ? "Hide the agent's reasoning" : "Show the agent's reasoning"}
+      aria-expanded={open}
+      onClick={(e) => {
+        e.stopPropagation();
+        (context as GridContext).toggle(data.id);
+      }}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-accent-soft hover:text-ink"
+    >
+      <span className="inline-block transition-transform" style={{ transform: open ? "rotate(90deg)" : undefined }}>▶</span>
+    </button>
+  );
+}
+
+type GridContext = { expanded: Set<string>; toggle: (id: string) => void };
+
+// Full-width row under a case: what the agent found, without opening the case.
+function DetailRow({ data }: ICellRendererParams<Row>) {
+  if (!data) return null;
+  const r = data.recommendation;
+  const factors = r?.factors ?? [];
+  return (
+    <div className="flex h-full gap-6 overflow-auto whitespace-normal border-l-4 bg-bg px-6 py-3 text-sm leading-normal" style={{ borderColor: r ? DECISION_COLOR[data.submitted?.decision ?? r.decision] : "var(--line)" }}>
+      {r ? (
+        <>
+          <div className="w-96 min-w-0 shrink-0 space-y-1">
+            <p className="font-medium leading-snug">{r.headline}</p>
+            <p className="text-xs text-muted">
+              {DECISION_LABEL[r.decision]}
+              {r.decision === "OFFER" ? ` of ${money(r.offer_amount)}` : ""} · {Math.round(r.win_probability * 100)}% win estimate · {r.evidence.length} evidence item{r.evidence.length === 1 ? "" : "s"}
+            </p>
+            {data.autopilot ? <p className="text-xs text-muted">Autopilot: {data.autopilot.reason}</p> : null}
+            {data.negotiation ? (
+              <p className="text-xs text-muted">
+                Negotiation: {data.negotiation.status.replaceAll("_", " ").toLowerCase()}, {data.negotiation.turns.length} messages, ceiling {money(data.negotiation.max_refund)}
+              </p>
+            ) : null}
+          </div>
+          <ul className="min-w-0 flex-1 space-y-1">
+            {factors.slice(0, 4).map((f, i) => (
+              <li key={i} className="flex gap-2 leading-snug">
+                <span className="shrink-0 font-semibold" style={{ color: f.favors === "SELLER" ? "var(--fight)" : "var(--danger)" }}>{f.favors === "SELLER" ? "For you" : "For buyer"}</span>
+                <span className="truncate" title={f.finding}>{f.finding}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="self-center text-muted">{data.status === "ANALYZING" ? "The agent is investigating this dispute now." : "Not investigated yet. Open the dispute and the agent starts right away."}</p>
+      )}
+      <Link href={`/cases/${data.id}`} className="shrink-0 self-center rounded-md border border-line px-3 py-1.5 text-sm hover:border-accent">
+        Open dispute
+      </Link>
+    </div>
+  );
+}
+
 function AgentCell({ data }: ICellRendererParams<Row>) {
   if (!data) return null;
   const r = data.recommendation;
@@ -128,12 +195,34 @@ export default function Inbox() {
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [totals, setTotals] = useState<Totals | null>(null);
+  const [shown, setShown] = useState<CaseRecord[]>([]);
+  const [claim, setClaim] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const grid = useRef<AgGridReact<Row>>(null);
 
+  const toggle = useCallback((id: string) => {
+    setExpanded((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+  const context = useMemo<GridContext>(() => ({ expanded, toggle }), [expanded, toggle]);
+  // The chevrons read `expanded` from the grid context, so redraw them when it changes.
+  useEffect(() => {
+    grid.current?.api?.refreshCells({ columns: ["expand"], force: true });
+  }, [expanded]);
+
+  const rows = useMemo<Row[]>(
+    () => (data?.cases ?? []).flatMap((c) => (expanded.has(c.id) ? [c, { ...c, id: `${c.id}:detail`, detail: true as const }] : [c])),
+    [data, expanded],
+  );
+
   const refreshTotals = useCallback((api: GridApi<Row>) => {
-    const shown: CaseRecord[] = [];
-    api.forEachNodeAfterFilter((n) => n.data && shown.push(n.data));
-    const next = totalsOf(shown);
+    const visible: CaseRecord[] = [];
+    api.forEachNodeAfterFilter((n) => n.data && !n.data.detail && visible.push(n.data));
+    const next = totalsOf(visible);
+    setShown((cur) => (cur.length === visible.length && cur.every((c, i) => c === visible[i]) ? cur : visible));
     // Only update on a real change, so setting the pinned row can't loop back here.
     setTotals((cur) => (cur && JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
   }, []);
@@ -143,6 +232,7 @@ export default function Inbox() {
       fileName: `rebuttal-outcomes-${new Date().toISOString().slice(0, 10)}.csv`,
       columnKeys: ["id", "buyer", "claim", "stage", "amountUsd", "decision", "status", "kept", "refunded", "win"],
       skipPinnedBottom: true,
+      shouldRowBeSkipped: (p) => isDetail(p.node),
     });
   }
 
@@ -192,6 +282,19 @@ export default function Inbox() {
 
   const cols = useMemo<ColDef<Row>[]>(
     () => [
+      {
+        colId: "expand",
+        headerName: "",
+        width: 52,
+        minWidth: 52,
+        maxWidth: 52,
+        resizable: false,
+        sortable: false,
+        suppressMovable: true,
+        lockPosition: "left",
+        cellRenderer: ExpandCell,
+        cellRendererSelector: pinned(blank),
+      },
       { colId: "id", headerName: "Dispute ID", hide: true, valueGetter: (p) => p.data?.id },
       {
         colId: "buyer",
@@ -266,6 +369,8 @@ export default function Inbox() {
         headerName: "Agent",
         cellRenderer: AgentCell,
         cellRendererSelector: pinned(TotalsOutcome),
+        // Autopilot and PayPal change these on their own; flash the cell so the seller notices.
+        enableCellChangeFlash: true,
         flex: 1.8,
         minWidth: 280,
         valueGetter: (p) => (p.data?.dispute ? statusLabel(p.data) : undefined),
@@ -291,6 +396,27 @@ export default function Inbox() {
     ],
     [],
   );
+
+  // Clicking a bar in the chart filters the grid's Claim column, and clearing it unfilters.
+  const filterClaim = useCallback(async (value: string | null) => {
+    const api = grid.current?.api;
+    if (!api) return;
+    await api.setColumnFilterModel("claim", value ? { filterType: "text", type: "equals", filter: value } : null);
+    api.onFilterChanged();
+  }, []);
+
+  // Keep the seller's column layout (order, widths, sort) between visits.
+  const saveColumns = useCallback((api: GridApi<Row>) => {
+    try {
+      localStorage.setItem(COL_STATE_KEY, JSON.stringify(api.getColumnState()));
+    } catch {}
+  }, []);
+  const restoreColumns = useCallback((api: GridApi<Row>) => {
+    try {
+      const raw = localStorage.getItem(COL_STATE_KEY);
+      if (raw) api.applyColumnState({ state: JSON.parse(raw) as ColumnState[], applyOrder: true });
+    } catch {}
+  }, []);
 
   const s = data?.stats;
 
@@ -362,6 +488,8 @@ export default function Inbox() {
 
       {data?.mode === "mock" ? <ShieldPanel key={data.cases.length ? "on" : "reset"} viewOnly={Boolean(data.viewOnly)} /> : null}
 
+      <InboxCharts shown={shown} activeClaim={claim} onClaim={filterClaim} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <input
           type="search"
@@ -381,17 +509,44 @@ export default function Inbox() {
           ref={grid}
           theme={gridTheme}
           rowHeight={64}
-          rowData={data?.cases ?? []}
+          rowData={rows}
+          context={context}
+          isFullWidthRow={(p) => isDetail(p.rowNode)}
+          fullWidthCellRenderer={DetailRow}
+          getRowHeight={(p) => (isDetail(p.node) ? 132 : undefined)}
+          // Keep each detail row right under its case, whatever the sort.
+          postSortRows={(p) => {
+            const details = new Map<string, IRowNode<Row>>();
+            for (const n of p.nodes) if (n.data?.detail) details.set(n.data.id, n);
+            if (!details.size) return;
+            const ordered = p.nodes.filter((n) => !n.data?.detail).flatMap((n) => {
+              const d = n.data && details.get(`${n.data.id}:detail`);
+              return d ? [n, d] : [n];
+            });
+            p.nodes.splice(0, p.nodes.length, ...ordered);
+          }}
+          onGridReady={(e) => restoreColumns(e.api)}
+          onColumnMoved={(e) => e.finished && saveColumns(e.api)}
+          onColumnResized={(e) => e.finished && saveColumns(e.api)}
+          onSortChanged={(e) => saveColumns(e.api)}
           columnDefs={cols}
           quickFilterText={search}
           // The id changes with the numbers so AG Grid redraws the pinned row.
           pinnedBottomRowData={totals ? [{ id: `totals-${JSON.stringify(totals)}`, totals } as Row] : []}
           getRowId={(p) => p.data.id}
-          onRowClicked={(e) => e.data && !e.node.rowPinned && router.push(`/cases/${e.data.id}`)}
-          getRowClass={(p) => (p.node.rowPinned ? "font-medium" : "cursor-pointer")}
+          // The chevron and the detail row's own link handle their clicks; AG Grid still reports them as row clicks.
+          onRowClicked={(e) => {
+            const fromControl = (e.event?.target as HTMLElement | null)?.closest("button, a");
+            if (e.data && !e.node.rowPinned && !e.data.detail && !fromControl) router.push(`/cases/${e.data.id}`);
+          }}
+          getRowClass={(p) => (p.node.rowPinned ? "font-medium" : isDetail(p.node) ? undefined : "cursor-pointer")}
           defaultColDef={{ cellStyle: { display: "flex", alignItems: "center" } }}
           onRowDataUpdated={(e) => refreshTotals(e.api)}
-          onFilterChanged={(e) => refreshTotals(e.api)}
+          onFilterChanged={(e) => {
+            refreshTotals(e.api);
+            const m = e.api.getColumnFilterModel("claim") as { type?: string; filter?: string } | null;
+            setClaim(m?.type === "equals" ? m.filter ?? null : null);
+          }}
           overlayNoRowsTemplate="No disputes. File a test dispute to try the flow."
           suppressCellFocus
         />
