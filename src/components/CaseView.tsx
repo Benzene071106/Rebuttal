@@ -284,6 +284,18 @@ export default function CaseView({ id }: { id: string }) {
         </div>
 
         <div className="space-y-6">
+          {c.notice && r ? (
+            <p role="status" className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: "var(--offer)", color: "var(--offer)" }}>
+              Using saved analysis. {c.notice}
+            </p>
+          ) : null}
+          {c.status === "ERROR" && !r && busy !== "analyze" ? (
+            <Panel title="Recommendation">
+              <p className="text-sm">The agent couldn&apos;t finish this investigation, and there&apos;s no saved one for this dispute yet. Nothing was sent to PayPal.</p>
+              <p className="text-xs text-muted">{c.error}</p>
+              {!viewOnly ? <button onClick={() => analyze(true)} className="text-sm text-accent">Try again</button> : null}
+            </Panel>
+          ) : null}
           {r ? (
             <Panel title="Recommendation">
               <div className="flex flex-wrap items-center gap-3">

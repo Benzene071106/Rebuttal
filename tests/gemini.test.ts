@@ -75,6 +75,72 @@ describe("Gemini adapter", () => {
   });
 });
 
+describe("Gemini fallback", () => {
+  const okTurn = { candidates: [{ content: { role: "model", parts: [{ text: "hi" }] }, finishReason: "STOP" }] };
+  const sys = { system: "s", tools: [], history: [{ role: "user" as const, text: "hello" }] };
+  // A client whose models fail in the given way; the rest answer.
+  function flaky(fail: Record<string, () => Error>) {
+    const tried: string[] = [];
+    return {
+      tried,
+      models: {
+        generateContent: async (p: any) => {
+          tried.push(p.model);
+          if (fail[p.model]) throw fail[p.model]();
+          return okTurn as any;
+        },
+      },
+    };
+  }
+  const status = (n: number) => () => Object.assign(new Error(`HTTP ${n}`), { status: n });
+  const timeout = () => Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+
+  it.each([
+    ["429 rate limit", status(429)],
+    ["503 overloaded", status(503)],
+    ["timeout", timeout],
+  ])("moves to the fallback model on %s", async (_label, err) => {
+    const client = flaky({ primary: err });
+    const m = geminiModel({ client, model: "primary", fallbacks: ["backup"], retryDelaysMs: [1] });
+    await m.next(sys);
+    expect(client.tried.at(-1)).toBe("backup");
+    expect(m.model).toBe("backup");
+  });
+
+  it("sends temperature 0", async () => {
+    let temp: number | undefined;
+    const client = { models: { generateContent: async (p: any) => ((temp = p.config.temperature), okTurn as any) } };
+    await geminiModel({ client, model: "a", fallbacks: [] }).next(sys);
+    expect(temp).toBe(0);
+  });
+
+  it("does not hop models on a bad request, and throws once every model failed", async () => {
+    const bad = flaky({ primary: status(400) });
+    await expect(geminiModel({ client: bad, model: "primary", fallbacks: ["backup"], retryDelaysMs: [1] }).next(sys)).rejects.toThrow("HTTP 400");
+    expect(bad.tried).toEqual(["primary"]);
+    const down = flaky({ primary: status(503), backup: timeout });
+    await expect(geminiModel({ client: down, model: "primary", fallbacks: ["backup"], retryDelaysMs: [1] }).next(sys)).rejects.toThrow();
+  });
+
+  it("uses the saved analysis, with a visible note, when every model fails", async () => {
+    process.env.REBUTTAL_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "rebuttal-cache-"));
+    process.env.GEMINI_API_KEY = "test-key-not-real";
+    process.env.GEMINI_MODEL = "primary";
+    process.env.GEMINI_FALLBACK_MODELS = "backup";
+    resetMock();
+    resetCases();
+    const [c] = await syncCases();
+    saveInvestigation(c.dispute, { model: "gemini:x", recommendation: rec as any, trace: [] });
+    // No network here, so a fresh run fails on every model.
+    const out = await runAnalysis(c.id, undefined, { fresh: true });
+    expect(out.status).toBe("READY");
+    expect(out.recommendation?.decision).toBe("FIGHT");
+    expect(out.notice).toMatch(/saved analysis/);
+    expect(out.trace[0].summary).toMatch(/saved analysis/);
+    for (const k of ["REBUTTAL_CACHE_DIR", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_FALLBACK_MODELS"]) delete process.env[k];
+  }, 60_000);
+});
+
 describe("investigation cache", () => {
   it("replays a saved investigation for the same order under a new dispute ID", async () => {
     process.env.REBUTTAL_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "rebuttal-cache-"));
@@ -101,8 +167,12 @@ describe("investigation cache", () => {
     expect(out.status).toBe("READY");
     expect(out.recommendation?.decision).toBe("FIGHT");
     expect(steps[0]).toContain("Saved investigation");
-    // A fresh run needs a model, and none is configured here.
-    await expect(runAnalysis(c.id, undefined, { fresh: true })).rejects.toThrow("No AI model configured");
+    // A fresh run needs a model, and none is configured here, so the saved one is used.
+    const again = await runAnalysis(c.id, undefined, { fresh: true });
+    expect(again.notice).toMatch(/saved analysis/);
+    resetCases();
+    const [other] = (await syncCases()).filter((x) => x.id !== c.id);
+    await expect(runAnalysis(other.id, undefined, { fresh: true })).rejects.toThrow("No AI model configured");
     delete process.env.REBUTTAL_CACHE_DIR;
   });
 });

@@ -3,7 +3,7 @@ import { resetCases, syncCases } from "../src/lib/cases";
 import { claudeModel } from "../src/lib/model";
 import { paypal } from "../src/lib/paypal";
 import { resetMock } from "../src/lib/paypal/mock";
-import { getBuyerHistory, resetShield, runShield } from "../src/lib/shield";
+import { getBuyerHistory, resetShield, runShield, scoreOrder } from "../src/lib/shield";
 
 process.env.PAYPAL_MODE = "mock";
 process.env.REBUTTAL_CACHE_DIR = "/nonexistent/investigations"; // no saved checks
@@ -61,10 +61,48 @@ describe("dispute shield", () => {
     expect(calls[0].tools.map((t: any) => t.name).sort()).toEqual(["get_buyer_history", "get_order", "submit_risk"]);
   });
 
-  it("records a failure instead of throwing", async () => {
+  it("still shows the rule-based check when the AI fails", async () => {
     const [first] = await paypal().ordersAwaitingShipment();
     const broken = { provider: "gemini", model: "x", next: async () => { throw new Error("quota"); } } as any;
     const out = await runShield(first.order_id, { model: broken });
-    expect(out).toMatchObject({ status: "ERROR", error: "quota" });
+    expect(out.status).toBe("READY");
+    expect(out.model).toBe("rules");
+    expect(out.notice).toContain("busy");
+    expect(out.verdict?.risk).toBe("HIGH");
+    expect(out.verdict?.actions.length).toBeGreaterThan(0);
+  });
+
+  it("gives the same risk level for the same order every time, whatever the model says", async () => {
+    await syncCases();
+    const orders = await paypal().ordersAwaitingShipment();
+    const expected: Record<string, string> = { "JK-1088": "HIGH", "JK-1090": "LOW", "JK-1093": "HIGH" };
+    for (const o of orders) {
+      const order = await paypal().runTool("get_order", { id: o.order_id });
+      const history = await getBuyerHistory((order as any).payer.email_address);
+      const a = scoreOrder(order, history);
+      const b = scoreOrder(structuredClone(order), structuredClone(history));
+      expect(b).toEqual(a);
+      expect(a.risk).toBe(expected[o.invoice_id]);
+    }
+    // Two runs where the model claims opposite risks still land on the same rule score.
+    const dana = orders.find((o) => o.invoice_id === "JK-1093")!;
+    const results = [];
+    for (const claim of [{ risk: "LOW", score: 3 }, { risk: "HIGH", score: 99 }]) {
+      resetShield();
+      const { model } = scripted("dana.w@example.com", { ...claim, headline: "Explained.", actions: ["Ship with signature confirmation"] }, dana.order_id);
+      results.push((await runShield(dana.order_id, { model })).verdict);
+    }
+    expect(results[0]?.score).toBe(results[1]?.score);
+    expect(results[0]?.risk).toBe("HIGH");
+    expect(results[1]?.signals).toEqual(results[0]?.signals);
+  });
+
+  it("weighs a repeat disputer whose parcel was signed for above a first-time buyer", () => {
+    const order = { payer: { name: { given_name: "A", surname: "B" }, address: { address_line_1: "1 Main", postal_code: "1" } }, payment_source: { paypal: { account_status: "VERIFIED" } }, purchase_units: [{ amount: { value: "50" }, shipping: { name: { full_name: "A B" }, address: { address_line_1: "1 Main", postal_code: "1" }, options: [] } }] };
+    const clean = scoreOrder(order, { completed_orders: 0, disputes: [] });
+    const repeat = scoreOrder(order, { completed_orders: 1, disputes: [{ invoice_id: "X", reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", outcome: "OPEN", shop_evidence: { signed_by: "B" } } as any] });
+    expect(clean.risk).toBe("LOW");
+    expect(repeat.risk).toBe("HIGH");
+    expect(repeat.signals.some((x) => x.finding.includes("signed for by B"))).toBe(true);
   });
 });

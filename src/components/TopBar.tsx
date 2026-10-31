@@ -71,6 +71,17 @@ export default function TopBar() {
           <button onClick={() => setSettings(true)} className={BUTTON.secondary}>Autopilot rules</button>
         </div>
       </div>
+      {data?.mode === "sandbox" && data.viewOnly ? (
+        <div role="note" className="border-t border-line" style={{ background: "color-mix(in srgb, var(--offer) 10%, transparent)" }}>
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+            <span>
+              <strong>Live PayPal sandbox, view-only for safety.</strong> Every visitor shares one real sandbox account, so approvals, refunds and offers are turned off here.
+              The demo video shows them running live.
+            </span>
+            <button onClick={() => switchMode("mock")} className="font-medium text-accent underline">Try every action in the Simulator</button>
+          </div>
+        </div>
+      ) : null}
       {settings ? <SettingsDrawer onClose={() => setSettings(false)} /> : null}
     </header>
   );

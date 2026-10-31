@@ -105,6 +105,8 @@ export type CaseRecord = {
   submitted?: { decision: Decision; at: string; response: string; offer_amount?: number; by?: "seller" | "autopilot" };
   outcome?: { result: "WON" | "LOST" | "SETTLED" | "REFUNDED"; amount_kept: number; amount_lost: number; at: string };
   error?: string;
+  // Shown above the recommendation when it came from a saved run because the AI was unavailable.
+  notice?: string;
   // How the case arrived: a PayPal dispute webhook, or the seller opening it from the inbox.
   source?: "webhook" | "inbox";
   // What autopilot did once the investigation finished, and which rule decided it.

@@ -22,7 +22,7 @@ export async function runAnalysis(caseId: string, onStep?: (s: TraceStep) => voi
   running.add(lock);
   try {
     const dispute = await paypal().getDispute(caseId);
-    updateCase(caseId, { dispute, status: "ANALYZING", trace: [], recommendation: undefined, error: undefined });
+    updateCase(caseId, { dispute, status: "ANALYZING", trace: [], recommendation: undefined, error: undefined, notice: undefined });
     const trace: TraceStep[] = [];
     const emit = (s: TraceStep) => {
       trace.push(s);
@@ -42,9 +42,16 @@ export async function runAnalysis(caseId: string, onStep?: (s: TraceStep) => voi
       if (!scripted) saveInvestigation(dispute, { model, recommendation, trace });
       return updateCase(caseId, { status: "READY", recommendation, trace });
     } catch (e) {
-      // Out of free-tier quota on a re-run: fall back to the last saved investigation.
-      const fallback = e instanceof RateLimitError ? loadInvestigation(dispute) : null;
-      if (fallback) return await replay(caseId, fallback, emit, "The AI model is rate-limited right now, so this is the last saved investigation.");
+      // Every Gemini model failed (quota, overload, timeout, a bad answer): fall back to
+      // the last saved investigation for these facts instead of leaving the seller with
+      // an error.
+      const fallback = loadInvestigation(dispute);
+      if (fallback) {
+        console.warn("Investigation failed, using the saved analysis:", e instanceof Error ? e.message : e);
+        const why = `${e instanceof RateLimitError ? "The AI model is rate-limited" : "The AI model is busy"} right now, so this is the saved analysis from ${fallback.saved_at.slice(0, 10)}. Re-run later for a fresh one.`;
+        await replay(caseId, fallback, emit, why);
+        return updateCase(caseId, { notice: why });
+      }
       throw e;
     }
   } catch (e) {

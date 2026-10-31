@@ -42,7 +42,8 @@ export function geminiModel(
             contents: toContents(history),
             config: {
               systemInstruction: system,
-              temperature: 0.2,
+              // 0 so the same facts give the same answer as far as the model allows.
+              temperature: 0,
               maxOutputTokens: 8192,
               tools: [{ functionDeclarations: tools.map(toDeclaration) }],
               abortSignal: AbortSignal.timeout(timeoutMs),

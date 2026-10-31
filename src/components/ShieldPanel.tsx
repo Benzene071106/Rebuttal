@@ -62,13 +62,13 @@ function ShieldDetail({ data, context }: ICellRendererParams<ShieldGridRow>) {
   return (
     <div className="grid h-full gap-4 overflow-auto whitespace-normal border-l-4 bg-bg px-6 py-3 leading-normal md:grid-cols-2" style={{ borderColor: RISK_COLOR[v.risk] }}>
       <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">What the agent found</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">What decided it: {v.score}/100 from fixed rules</h3>
         <ul className="mt-1 space-y-1 text-sm">
           {v.signals.map((s, i) => (
             <li key={i} className="flex gap-2 leading-snug">
               <span className="font-semibold" style={{ color: s.effect === "RAISES" ? "var(--danger)" : "var(--fight)" }}>{s.effect === "RAISES" ? "▲" : "▼"}</span>
               <span>
-                {s.finding} <span className="text-xs text-muted">({s.source})</span>
+                {s.finding} <span className="text-xs text-muted">({s.source}{s.weight ? `, ${s.weight > 0 ? "+" : ""}${s.weight} pts` : ""})</span>
               </span>
             </li>
           ))}
@@ -81,8 +81,9 @@ function ShieldDetail({ data, context }: ICellRendererParams<ShieldGridRow>) {
             <li key={i}>{a}</li>
           ))}
         </ol>
+        {data.notice ? <p className="mt-2 text-xs" style={{ color: "var(--offer)" }}>{data.notice}</p> : null}
         <p className="mt-2 text-xs text-muted">
-          {data.model} · {data.trace.filter((t) => t.kind === "tool").map((t) => t.tool).join(", ")}
+          {data.model === "rules" ? "Rule-based check" : `Explained by ${data.model}`} · {data.trace.filter((t) => t.kind === "tool").map((t) => t.tool).join(", ")}
           {viewOnly ? null : (
             <>
               {" · "}
@@ -163,7 +164,7 @@ export default function ShieldPanel({ viewOnly }: { viewOnly: boolean }) {
           getRowId={(p) => `${p.data.order_id}${p.data.detail ? ":detail" : ""}`}
           isFullWidthRow={(p) => Boolean(p.rowNode.data?.detail)}
           fullWidthCellRenderer={ShieldDetail}
-          getRowHeight={(p) => (p.data?.detail ? 216 : 64)}
+          getRowHeight={(p) => (p.data?.detail ? Math.max(216, 100 + 30 * (p.data.verdict?.signals.length ?? 0)) : 64)}
           // Highest risk first; a detail row sorts with its order and stays right under it.
           postSortRows={(p) => {
             const ordered = p.nodes.filter((n) => !n.data?.detail).flatMap((n) => {

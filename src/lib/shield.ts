@@ -18,7 +18,7 @@ import { getStoreRecords } from "./store-records";
 import type { TraceStep } from "./types";
 import { lruGet, visitor } from "./visitor";
 
-export type RiskSignal = { finding: string; effect: "RAISES" | "LOWERS"; source: string };
+export type RiskSignal = { finding: string; effect: "RAISES" | "LOWERS"; source: string; weight?: number };
 export type RiskVerdict = { risk: "LOW" | "MEDIUM" | "HIGH"; score: number; headline: string; signals: RiskSignal[]; actions: string[] };
 export type ShieldCheck = {
   order_id: string;
@@ -28,6 +28,8 @@ export type ShieldCheck = {
   trace: TraceStep[];
   model?: string;
   error?: string;
+  // Set when the AI couldn't explain the check and the seller sees the rule-based one.
+  notice?: string;
   at: string;
 };
 
@@ -36,7 +38,7 @@ const REPLAY_STEP_MS = 350;
 
 const SYSTEM = `You protect Juniper & Kiln, a two-person online shop paid through PayPal, from disputes before they happen. A buyer has just paid and the order has not shipped yet. Decide how likely this order is to end in a PayPal dispute or chargeback, and what the seller should do before shipping.
 
-Read the PayPal order with get_order and the buyer's history with get_buyer_history, then call submit_risk exactly once.
+A fixed rule-based check has already scored the order; you are told its score, band and the signals behind it. You do not change the score or the band. Read the PayPal order with get_order and the buyer's history with get_buyer_history, then call submit_risk exactly once with a headline that explains the result and the steps to take.
 
 What matters:
 - Shipping somewhere other than the buyer's PayPal address, especially a package forwarder or a different recipient name. PayPal Seller Protection generally only covers items shipped to the address on the transaction.
@@ -45,8 +47,8 @@ What matters:
 - A repeat buyer with completed orders and no disputes lowers the risk.
 
 Rules:
-- Every signal must come from a tool result; name the tool in its source. Never invent facts.
-- score is 0 to 100 (chance of a dispute, scaled). LOW under 30, MEDIUM 30 to 64, HIGH 65 and over.
+- Use only facts from tool results. Never invent facts.
+- The headline must agree with the band you were given.
 - actions are 1 to 3 short, imperative steps the seller can take before shipping, cheapest first: for example message the buyer through PayPal to confirm the order, ship only to the address on the PayPal transaction, require signature confirmation, keep a packing photo, hold the parcel, or refund before shipping. For LOW risk, say to ship as normal.
 - Be fair to the buyer: a single weak signal is not fraud. Explain it in the headline, in one sentence a busy seller reads first.`;
 
@@ -57,25 +59,9 @@ const SUBMIT_TOOL: ToolDef = {
   input_schema: {
     type: "object",
     additionalProperties: false,
-    required: ["risk", "score", "headline", "signals", "actions"],
+    required: ["headline", "actions"],
     properties: {
-      risk: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
-      score: { type: "number", description: "0 to 100" },
-      headline: { type: "string", description: "One sentence the seller reads first." },
-      signals: {
-        type: "array",
-        description: "2 to 6 facts that decided it, raising or lowering the risk.",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["finding", "effect", "source"],
-          properties: {
-            finding: { type: "string" },
-            effect: { type: "string", enum: ["RAISES", "LOWERS"] },
-            source: { type: "string", description: "Tool that returned this fact." },
-          },
-        },
-      },
+      headline: { type: "string", description: "One sentence the seller reads first, explaining the given risk band." },
       actions: { type: "array", items: { type: "string" }, description: "1 to 3 steps before shipping." },
     },
   },
@@ -93,13 +79,96 @@ const HISTORY_TOOL: ToolDef = {
   },
 };
 
-const VerdictSchema = z.object({
-  risk: z.enum(["LOW", "MEDIUM", "HIGH"]),
-  score: z.number().min(0).max(100),
+const ExplainSchema = z.object({
   headline: z.string().min(1),
-  signals: z.array(z.object({ finding: z.string(), effect: z.enum(["RAISES", "LOWERS"]), source: z.string() })).min(1),
-  actions: z.array(z.string()).min(1).max(4),
+  actions: z.array(z.string().min(1)).min(1).max(4),
 });
+
+// ---- Rule-based risk score -------------------------------------------------------
+// The score and band come from fixed weights, so the same order and the same buyer
+// history always give the same level. The model only explains the result.
+
+export const RISK_WEIGHTS = {
+  base: 10,
+  addressMismatch: 15,
+  recipientMismatch: 10,
+  forwarder: 15,
+  unverified: 10,
+  firstTime: 10,
+  overnight: 10,
+  highValue: 5, // $200 and over
+  pastDispute: 45, // first dispute this buyer filed with the shop
+  morePastDisputes: 15, // each further one
+  contradicted: 15, // the shop's evidence contradicted a past claim (signed for, delivered)
+  cleanRepeat: -5, // completed orders and no disputes
+} as const;
+
+export type RuleCheck = { score: number; risk: RiskVerdict["risk"]; signals: RiskSignal[] };
+type BuyerHistory = Awaited<ReturnType<typeof getBuyerHistory>>;
+
+const FORWARDER = /forward|c\/o\b|#fwd|reship|freight|parcel ?bridge|shipito|myus/i;
+const norm = (x: unknown) => String(x ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export function scoreOrder(order: any, history: Pick<BuyerHistory, "completed_orders" | "disputes">): RuleCheck {
+  const W = RISK_WEIGHTS;
+  const signals: RiskSignal[] = [];
+  let score: number = W.base;
+  const add = (weight: number, finding: string, source: string) => {
+    score += weight;
+    signals.push({ finding, effect: weight >= 0 ? "RAISES" : "LOWERS", source, weight });
+  };
+  const pu = order?.purchase_units?.[0] ?? {};
+  const ship = pu.shipping ?? {};
+  const payer = order?.payer ?? {};
+  const payerAddr = payer.address ?? order?.payment_source?.paypal?.address;
+  const shipAddr = ship.address;
+  const payerName = [payer.name?.given_name, payer.name?.surname].filter(Boolean).join(" ");
+  const shipName = String(ship.name?.full_name ?? "");
+  const amount = Number(pu.amount?.value ?? 0);
+  const option = (ship.options ?? []).find((o: any) => o.selected) ?? {};
+
+  if (payerAddr && shipAddr && (norm(payerAddr.address_line_1) !== norm(shipAddr.address_line_1) || norm(payerAddr.postal_code) !== norm(shipAddr.postal_code)))
+    add(W.addressMismatch, `Ships to ${[shipAddr.address_line_1, shipAddr.admin_area_2].filter(Boolean).join(", ")}, not the buyer's PayPal address. Seller Protection generally covers only the address on the transaction.`, "get_order");
+  const surname = norm(payer.name?.surname);
+  if (shipName && surname && !norm(shipName).includes(surname)) add(W.recipientMismatch, `The parcel is addressed to ${shipName}, not the PayPal payer ${payerName}.`, "get_order");
+  if (FORWARDER.test(`${shipName} ${shipAddr?.address_line_1 ?? ""}`)) add(W.forwarder, "The shipping address looks like a package forwarder.", "get_order");
+  const status = order?.payment_source?.paypal?.account_status;
+  if (status === "UNVERIFIED") add(W.unverified, "The buyer's PayPal account is unverified.", "get_order");
+  if (/overnight|express|next.?day/i.test(`${option.id ?? ""} ${option.label ?? ""}`)) add(W.overnight, `The buyer paid for ${option.label ?? "overnight shipping"}.`, "get_order");
+  if (amount >= 200) add(W.highValue, `A high-value order ($${amount.toFixed(2)}).`, "get_order");
+
+  const disputes = history.disputes ?? [];
+  if (!disputes.length && history.completed_orders === 0) add(W.firstTime, "First order from this buyer.", "get_buyer_history");
+  disputes.forEach((d, i) => {
+    const label = String(d.reason ?? "").toLowerCase().replaceAll("_", " ");
+    add(i === 0 ? W.pastDispute : W.morePastDisputes, `Filed a "${label}" dispute on ${d.invoice_id} (${String(d.outcome).toLowerCase()}).`, "get_buyer_history");
+    const ev = d.shop_evidence;
+    if (ev?.signed_by && /NOT_RECEIVED/.test(String(d.reason))) add(W.contradicted, `That parcel was signed for by ${ev.signed_by}, which contradicts the claim.`, "get_buyer_history");
+  });
+  if (!disputes.length && history.completed_orders > 0) {
+    const n = history.completed_orders;
+    add(W.cleanRepeat, `Repeat buyer: ${n} completed order${n === 1 ? "" : "s"} and no disputes.`, "get_buyer_history");
+  }
+  if (status === "VERIFIED" && !signals.some((x) => x.source === "get_order" && x.effect === "RAISES"))
+    signals.push({ finding: "Verified PayPal account, shipping to the address on the payment.", effect: "LOWERS", source: "get_order", weight: 0 });
+
+  score = Math.max(0, Math.min(100, score));
+  return { score, risk: bandOf(score), signals };
+}
+
+// What the seller sees if the model can't explain the check: the same score, in plain steps.
+export function ruleVerdict(rule: RuleCheck): RiskVerdict {
+  const top = rule.signals.filter((x) => x.effect === "RAISES").sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))[0];
+  const headline =
+    rule.risk === "LOW" ? "Low dispute risk: ship as normal." : `${rule.risk === "HIGH" ? "High" : "Medium"} dispute risk: ${top ? top.finding.charAt(0).toLowerCase() + top.finding.slice(1) : "check before shipping."}`;
+  const actions =
+    rule.risk === "LOW"
+      ? ["Ship as normal with tracking."]
+      : rule.risk === "MEDIUM"
+        ? ["Message the buyer through PayPal to confirm the order.", "Ship only to the address on the PayPal transaction, with tracking."]
+        : ["Message the buyer through PayPal to confirm the order before shipping.", "Ship only to the address on the PayPal transaction, with signature confirmation.", "If the buyer can't confirm, refund before shipping."];
+  return { ...rule, headline, actions };
+}
 
 // The buyer's history with the shop: completed orders, plus Rebuttal's memory of every
 // dispute they filed, with the evidence the shop had and how it ended.
@@ -136,9 +205,13 @@ export async function getBuyerHistory(email: string) {
   };
 }
 
-export async function assessOrder(orderId: string, opts: { model?: AgentModel; onStep?: (s: TraceStep) => void } = {}): Promise<{ verdict: RiskVerdict; trace: TraceStep[]; model: string }> {
+export async function assessOrder(
+  orderId: string,
+  opts: { model?: AgentModel; onStep?: (s: TraceStep) => void; rule?: RuleCheck } = {},
+): Promise<{ verdict: RiskVerdict; trace: TraceStep[]; model: string }> {
   const model = opts.model ?? defaultModel();
   const gw = paypal();
+  const rule = opts.rule ?? (await ruleFor(orderId));
   const trace: TraceStep[] = [];
   const step = (s: Omit<TraceStep, "at">) => {
     const full = { ...s, at: new Date().toISOString() };
@@ -146,7 +219,12 @@ export async function assessOrder(orderId: string, opts: { model?: AgentModel; o
     opts.onStep?.(full);
   };
   const tools: ToolDef[] = [...gw.agentTools().filter((t) => t.name === "get_order"), HISTORY_TOOL, SUBMIT_TOOL];
-  const history: ChatEntry[] = [{ role: "user", text: `PayPal order ${orderId} was just paid and has not shipped. Check its dispute risk and submit it.` }];
+  const history: ChatEntry[] = [
+    {
+      role: "user",
+      text: `PayPal order ${orderId} was just paid and has not shipped. The rule-based check scored it ${rule.score}/100, ${rule.risk} risk, from these signals:\n${rule.signals.map((x) => `- ${x.effect === "RAISES" ? "+" : ""}${x.weight ?? 0}: ${x.finding}`).join("\n")}\nRead the order and the buyer's history, then submit a headline explaining this ${rule.risk} result and the steps to take before shipping.`,
+    },
+  ];
 
   let nudged = false;
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -164,9 +242,9 @@ export async function assessOrder(orderId: string, opts: { model?: AgentModel; o
     for (const use of res.calls) {
       const reply = (content: string, isError?: boolean) => results.push({ id: use.id, name: use.name, content, ...(isError ? { isError } : {}) });
       if (use.name === SUBMIT_TOOL.name) {
-        const parsed = VerdictSchema.safeParse(use.input);
+        const parsed = ExplainSchema.safeParse(use.input);
         if (parsed.success) {
-          const v = { ...parsed.data, risk: bandOf(parsed.data.score) };
+          const v: RiskVerdict = { ...rule, ...parsed.data };
           step({ kind: "note", summary: `Risk: ${v.risk} (${Math.round(v.score)}/100)` });
           return { verdict: v, trace, model: `${model.provider}:${model.model}` };
         }
@@ -188,7 +266,11 @@ export async function assessOrder(orderId: string, opts: { model?: AgentModel; o
   throw new Error("The check did not finish within its step limit.");
 }
 
-// The score decides the band, so a model that says MEDIUM at 80 can't understate it.
+async function ruleFor(orderId: string) {
+  const order = (await paypal().runTool("get_order", { id: orderId })) as any;
+  return scoreOrder(order, await getBuyerHistory(order?.payer?.email_address ?? ""));
+}
+
 const bandOf = (score: number): RiskVerdict["risk"] => (score >= 65 ? "HIGH" : score >= 30 ? "MEDIUM" : "LOW");
 
 function summarizeShield(tool: string, out: unknown): string {
@@ -260,21 +342,34 @@ export async function runShield(orderId: string, opts: { fresh?: boolean; model?
   const onStep = (st: TraceStep) => s.set(orderId, { ...s.get(orderId)!, trace: [...(s.get(orderId)?.trace ?? []), st] });
   try {
     await syncCases(); // dispute memory needs the current cases
-    const order = (await paypal().runTool("get_order", { id: orderId })) as { payer?: { email_address?: string } };
-    const memory = await getBuyerHistory(order.payer?.email_address ?? "");
+    const order = (await paypal().runTool("get_order", { id: orderId })) as any;
+    const memory = await getBuyerHistory(order?.payer?.email_address ?? "");
+    const rule = scoreOrder(order, memory);
     const key = shieldKey(meta.invoice_id, memory);
-    const saved = opts.fresh ? null : loadCheck(key);
-    if (saved) {
-      onStep({ at: new Date().toISOString(), kind: "note", summary: `Saved check from ${saved.saved_at.slice(0, 10)} (${saved.model}). Re-check for a fresh one.` });
-      for (const st of saved.trace) {
+    const saved = loadCheck(key);
+    const replay = async (from: SavedCheck, why: string) => {
+      onStep({ at: new Date().toISOString(), kind: "note", summary: why });
+      for (const st of from.trace.filter((t) => t.kind !== "note")) {
         await new Promise((r) => setTimeout(r, REPLAY_STEP_MS));
         onStep({ ...st, at: new Date().toISOString() });
       }
-      return done(orderId, { status: "READY", verdict: saved.verdict, model: saved.model });
+      onStep({ at: new Date().toISOString(), kind: "note", summary: `Risk: ${rule.risk} (${rule.score}/100)` });
+      // The saved run only supplies the wording; the score is always today's rule score.
+      return done(orderId, { status: "READY", verdict: { ...rule, headline: from.verdict.headline, actions: from.verdict.actions }, model: from.model });
+    };
+    if (saved && !opts.fresh) return await replay(saved, `Saved check from ${saved.saved_at.slice(0, 10)} (${saved.model}). Re-check for a fresh one.`);
+    try {
+      const out = await assessOrder(orderId, { model: opts.model, onStep, rule });
+      if (!opts.model) saveCheck(key, out);
+      return done(orderId, { status: "READY", verdict: out.verdict, model: out.model });
+    } catch (e) {
+      // The AI is down or out of quota: the score never depended on it, so show it anyway.
+      const why = e instanceof Error ? e.message : String(e);
+      console.warn("Shield explanation failed, using the rule-based check:", why);
+      if (saved) return await replay(saved, "The AI model is busy right now, so this uses the saved explanation. The risk score is calculated fresh.");
+      onStep({ at: new Date().toISOString(), kind: "note", summary: `Risk: ${rule.risk} (${rule.score}/100)` });
+      return done(orderId, { status: "READY", verdict: ruleVerdict(rule), model: "rules", notice: "The AI model is busy right now, so this is the rule-based check without the AI's explanation." });
     }
-    const out = await assessOrder(orderId, { model: opts.model, onStep });
-    if (!opts.model) saveCheck(key, out);
-    return done(orderId, { status: "READY", verdict: out.verdict, model: out.model });
   } catch (e) {
     return done(orderId, { status: "ERROR", error: e instanceof Error ? e.message : String(e) });
   }
