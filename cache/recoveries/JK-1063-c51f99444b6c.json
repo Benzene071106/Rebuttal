@@ -1,0 +1,15 @@
+{
+  "key": "JK-1063-c51f99444b6c",
+  "saved_at": "2026-10-31T16:05:15.621Z",
+  "plan": {
+    "plan": "PAUSE_FOR_SELLER",
+    "diagnosis": "PayPal could not process your $28 refund because your PayPal account balance is too low to cover the amount.",
+    "seller_steps": [
+      "Log in to your PayPal account.",
+      "Add funds to your PayPal balance to cover the $28 refund.",
+      "Return here and click retry or complete the refund."
+    ],
+    "by": "model",
+    "model": "gemini:gemini-3.5-flash-lite"
+  }
+}

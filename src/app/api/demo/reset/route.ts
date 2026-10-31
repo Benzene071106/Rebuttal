@@ -1,6 +1,7 @@
 import { resetCases } from "@/lib/cases";
 import { paypal } from "@/lib/paypal";
 import { resetMock } from "@/lib/paypal/mock";
+import { resetIncidents } from "@/lib/recovery";
 import { resetShield } from "@/lib/shield";
 import { withVisitor } from "@/lib/visitor";
 
@@ -10,5 +11,6 @@ export const POST = withVisitor(async () => {
   resetMock();
   resetCases();
   resetShield();
+  resetIncidents();
   return Response.json({ ok: true });
 });

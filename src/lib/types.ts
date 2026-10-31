@@ -149,3 +149,26 @@ export type AutopilotRules = {
   // The negotiator may refund at most this share of the disputed amount.
   negotiate_max_pct: number;
 };
+
+// A PayPal call that failed while Rebuttal was acting on a dispute, and how the agent recovered.
+export type Incident = {
+  id: string;
+  at: string;
+  case_id: string;
+  invoice?: string;
+  buyer?: string;
+  action: Decision;
+  amount: number;
+  // What PayPal said: HTTP status, error name (or detail issue) and debug_id, as PayPal returned them.
+  paypal: { status: number | null; name: string; message: string; debug_id: string | null };
+  kind: "TRANSIENT" | "AUTH" | "BUSINESS";
+  attempts: Array<{ at: string; what: string; ok: boolean }>;
+  // The recovery plan: retried automatically, an alternative proposed to the seller, or paused for them.
+  plan: "RETRIED" | "PROPOSE_ALTERNATIVE" | "PAUSE_FOR_SELLER";
+  diagnosis: string;
+  seller_steps: string[];
+  alternative?: { decision: Decision; amount: number; why: string };
+  result: "HEALED" | "WAITING_FOR_SELLER";
+  by: "model" | "rules";
+  model?: string;
+};

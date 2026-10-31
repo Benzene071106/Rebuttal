@@ -18,6 +18,14 @@ The **dispute shield** works before a dispute exists. When an order is paid, the
 - A repeat buyer's $58 prints are **LOW**.
 - A new $148 order from the buyer who is disputing a signed-for tote right now is **HIGH**, with the signature evidence quoted back.
 
+**Self-healing PayPal calls.** When a PayPal write fails, the agent reads PayPal's error (status, name, `debug_id`) and recovers on its own when it safely can:
+
+- A PayPal outage (5xx, timeout) is retried with backoff.
+- An expired access token is replaced with a fresh PayPal sign-in and the call repeated.
+- Anything PayPal refused for a business reason, like a refund with `INSUFFICIENT_FUNDS` (which our live sandbox seller really returned), is not retried. Gemini diagnoses it in plain words and either pauses the case with steps for the seller or proposes another response.
+
+A proposal always waits for the seller's approval. The agent never changes code and never widens the seller's limits. Every incident lands in an AG Grid log with each attempt and the diagnosis. In the simulator, **Break PayPal's next call** injects an outage, an expired token or insufficient funds, so you can watch it recover.
+
 The inbox is built on **AG Grid** and **AG Charts** (both Community, free):
 
 - Two charts above the queue, **money by claim type** and **what the agent decided**, are drawn from the rows the grid is showing. Search or filter the grid and the charts follow. Click a bar and the grid filters to that claim type.
@@ -122,7 +130,7 @@ In the sandbox app, add a webhook to `https://<your-host>/api/webhooks/paypal` f
 npm test
 ```
 
-The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The shield tests cover dispute memory, the tools the model may call, the score band and failures.
+The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the score band and failures.
 
 ## Project layout
 
@@ -137,6 +145,7 @@ src/lib/autopilot.ts        Webhook -> investigation -> seller rules -> PayPal a
 src/lib/rules.ts            Seller autopilot rules and guardrails
 src/lib/negotiation.ts      AI negotiator: haggles a partial refund inside the seller's ceiling
 src/lib/shield.ts           Dispute shield: risk check on paid orders, with dispute memory
+src/lib/recovery.ts         Self-healing PayPal calls: read PayPal's error, retry/refresh, or AI diagnosis
 src/lib/demo/scenarios.ts   Demo shop data: listings, messages, carrier scans
 src/components/Inbox.tsx    Dispute inbox (AG Grid: search, column filters, live totals row, expandable reasoning rows, cell flash, saved layout, CSV export)
 src/components/InboxCharts.tsx  AG Charts that follow the grid's filters; clicking a bar filters the grid
@@ -145,6 +154,7 @@ src/components/CaseView.tsx Live investigation, recommendation, approval
 src/components/WhyPanel.tsx Why this decision: facts for and against, expected money per option
 src/components/AutopilotPanel.tsx  Autopilot rules and the alerts feed
 src/components/NegotiationPanel.tsx  Negotiation transcript with the agent's reasoning
+src/components/IncidentsPanel.tsx  Self-healing incident log (AG Grid) and the simulator's fault switch
 src/components/ShieldPanel.tsx  Dispute shield: paid orders and their risk (AG Grid with risk renderers and detail rows)
 ```
 

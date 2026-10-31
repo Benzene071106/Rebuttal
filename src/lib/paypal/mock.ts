@@ -2,6 +2,7 @@
 // Disputes, Orders, Shipment Tracking and Transaction Search APIs. Used for local
 // development and tests when sandbox credentials or network access are missing.
 
+import crypto from "node:crypto";
 import { PENDING_ORDERS, type PendingOrder } from "../demo/orders";
 import { personaFor, SCENARIOS, SHOP, type Scenario } from "../demo/scenarios";
 import type { Dispute } from "../types";
@@ -22,7 +23,35 @@ type MockRow = {
   pendingReply?: { due: number; apply: () => void };
 };
 
-type MockState = { rows: Map<string, MockRow>; nextSeq: number; filed: Set<string> };
+type MockState = { rows: Map<string, MockRow>; nextSeq: number; filed: Set<string>; fault?: { kind: FaultKind; left: number } };
+
+// Faults the simulator can inject into its next PayPal write call, to show the agent
+// recovering. Each throws the same error text the live sandbox gateway throws.
+export type FaultKind = "OUTAGE" | "TOKEN_EXPIRED" | "INSUFFICIENT_FUNDS";
+const FAULT_CALLS: Record<FaultKind, number> = { OUTAGE: 2, TOKEN_EXPIRED: 1, INSUFFICIENT_FUNDS: 1 };
+
+export function armFault(kind: FaultKind | null) {
+  state().fault = kind ? { kind, left: FAULT_CALLS[kind] } : undefined;
+}
+export function armedFault(): FaultKind | null {
+  return state().fault?.kind ?? null;
+}
+
+// Called at the start of each write. Throws while the armed fault has calls left.
+function maybeFail(op: "accept-claim" | "make-offer" | "provide-evidence", id: string) {
+  const st = state();
+  const f = st.fault;
+  if (!f) return;
+  // Insufficient funds only applies to refunds; other writes go through.
+  if (f.kind === "INSUFFICIENT_FUNDS" && op !== "accept-claim") return;
+  if (--f.left <= 0) st.fault = undefined;
+  // Stable per dispute and fault, like a real debug_id for one failing request.
+  const debug = crypto.createHash("sha256").update(`${f.kind}:${op}:${id}:${f.left}`).digest("hex").slice(0, 13);
+  const url = `/v1/customer/disputes/${id}/${op}`;
+  if (f.kind === "OUTAGE") throw new Error(`PayPal POST ${url} failed (503): {"name":"SERVICE_UNAVAILABLE","message":"Service Unavailable.","debug_id":"${debug}"}`);
+  if (f.kind === "TOKEN_EXPIRED") throw new Error(`PayPal POST ${url} failed (401): {"error":"invalid_token","error_description":"Access Token not found in cache","debug_id":"${debug}"}`);
+  throw new Error(`PayPal refused the refund: the seller's PayPal balance is too low to cover it (INSUFFICIENT_FUNDS). PayPal POST ${url} failed (422): {"name":"UNPROCESSABLE_ENTITY","details":[{"issue":"INSUFFICIENT_FUNDS","description":"Sender does not have sufficient funds. Please add funds and retry."}],"debug_id":"${debug}"}`);
+}
 
 // One simulator per visitor, so judges trying the demo at the same time don't see each other's clicks.
 const g = globalThis as unknown as { __rebuttalMock?: Map<string, MockState> };
@@ -304,6 +333,7 @@ export const mockGateway: PayPalGateway = {
   },
 
   async provideEvidence(id, ev: EvidenceSubmission) {
+    maybeFail("provide-evidence", id);
     const r = row(id);
     r.submissions.push({ kind: "evidence", ...ev });
     touch(r, {
@@ -313,6 +343,7 @@ export const mockGateway: PayPalGateway = {
   },
 
   async makeOffer(id, offer) {
+    maybeFail("make-offer", id);
     const r = row(id);
     r.submissions.push({ kind: "offer", ...offer });
     touch(r, {
@@ -330,6 +361,7 @@ export const mockGateway: PayPalGateway = {
   },
 
   async acceptClaim(id, note) {
+    maybeFail("accept-claim", id);
     const r = row(id);
     r.submissions.push({ kind: "accept", note });
     touch(r, { status: "RESOLVED", dispute_outcome: { outcome_code: "RESOLVED_BUYER_FAVOUR", amount_refunded: r.dispute.dispute_amount } });

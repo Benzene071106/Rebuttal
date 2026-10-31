@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseRecord } from "@/lib/types";
 import AutopilotPanel from "./AutopilotPanel";
+import IncidentsPanel from "./IncidentsPanel";
 import InboxCharts from "./InboxCharts";
 import ShieldPanel from "./ShieldPanel";
 import Link from "next/link";
@@ -485,6 +486,8 @@ export default function Inbox() {
       </div>
 
       <AutopilotPanel cases={data?.cases ?? []} mode={data?.mode} viewOnly={Boolean(data?.viewOnly)} />
+
+      <IncidentsPanel mode={data?.mode} refreshKey={(data?.cases ?? []).map((c) => c.updated_at).join("|")} />
 
       {data?.mode === "mock" ? <ShieldPanel key={data.cases.length ? "on" : "reset"} viewOnly={Boolean(data.viewOnly)} /> : null}
 

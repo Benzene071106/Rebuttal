@@ -176,7 +176,8 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
           await call("POST", `/v1/customer/disputes/${id}/accept-claim`, { note, accept_claim_type: "REFUND" });
         } catch (rest) {
           if (/INSUFFICIENT_FUNDS/.test(rest instanceof Error ? rest.message : "")) {
-            throw new Error("PayPal refused the refund: the seller's PayPal balance is too low to cover it. Add funds to the account, then approve again.");
+            // Keep PayPal's own error (name, debug_id) so the recovery agent can read it.
+            throw new Error(`PayPal refused the refund: the seller's PayPal balance is too low to cover it (INSUFFICIENT_FUNDS). ${rest instanceof Error ? rest.message : ""}`);
           }
           throw rest;
         }

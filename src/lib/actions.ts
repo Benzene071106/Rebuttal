@@ -2,6 +2,7 @@
 
 import { getCase, updateCase } from "./cases";
 import { paypal } from "./paypal";
+import { withRecovery } from "./recovery";
 import type { CaseRecord, Decision, Dispute, EvidenceType } from "./types";
 
 export type Approval = {
@@ -38,14 +39,14 @@ export async function approve(caseId: string, a: Approval): Promise<CaseRecord> 
         note(caseId, `Could not add tracking to the PayPal transaction: ${e instanceof Error ? e.message : e}`, "error");
       }
     }
-    await gw.provideEvidence(caseId, { notes: response, evidence_types: types, tracking });
+    await withRecovery(c, "FIGHT", Number(c.dispute.dispute_amount.value), () => gw.provideEvidence(caseId, { notes: response, evidence_types: types, tracking }));
   } else if (a.decision === "OFFER") {
     const amount = Number(a.offer_amount);
     const max = Number(c.dispute.dispute_amount.value);
     if (!(amount > 0 && amount < max)) throw new Error(`Offer must be between 0 and ${max}.`);
-    await gw.makeOffer(caseId, { amount: amount.toFixed(2), currency, type: a.offer_type ?? "REFUND", note: response });
+    await withRecovery(c, "OFFER", amount, () => gw.makeOffer(caseId, { amount: amount.toFixed(2), currency, type: a.offer_type ?? "REFUND", note: response }));
   } else {
-    await gw.acceptClaim(caseId, response);
+    await withRecovery(c, "REFUND", Number(c.dispute.dispute_amount.value), () => gw.acceptClaim(caseId, response));
   }
 
   const dispute = await gw.getDispute(caseId);

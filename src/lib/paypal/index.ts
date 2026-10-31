@@ -28,3 +28,9 @@ export function paypal(): PayPalGateway {
   g.__rebuttalSandbox ??= sandboxGateway(process.env.PAYPAL_CLIENT_ID!, process.env.PAYPAL_CLIENT_SECRET!);
   return g.__rebuttalSandbox;
 }
+
+// Drops the cached sandbox client so the next call signs in to PayPal again, used when
+// PayPal says the access token expired.
+export function resetPayPalClient() {
+  g.__rebuttalSandbox = undefined;
+}

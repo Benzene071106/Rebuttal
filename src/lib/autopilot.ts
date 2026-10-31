@@ -7,6 +7,7 @@ import { approve } from "./actions";
 import { runAnalysis } from "./analysis";
 import { addActivity, getCase, updateCase, upsertFromDispute } from "./cases";
 import { paypal } from "./paypal";
+import { RecoveryPausedError } from "./recovery";
 import { evaluateRules, getRules } from "./rules";
 import type { CaseRecord, Dispute } from "./types";
 
@@ -76,6 +77,11 @@ export async function runAutopilot(id: string): Promise<CaseRecord | undefined> 
       "good",
     );
   } catch (e) {
+    // The recovery agent already logged the incident, alerted the seller and set the case up.
+    if (e instanceof RecoveryPausedError) {
+      updateCase(id, { autopilot: { action: "FAILED", reason: e.message, at: at() } });
+      return getCase(id);
+    }
     updateCase(id, { autopilot: { action: "FAILED", reason: `${verdict.reason} PayPal refused: ${errorText(e)}`, at: at() } });
     addActivity(id, `Autopilot tried to ${verdict.act === "REFUND" ? "refund" : "send evidence"}, but PayPal refused: ${errorText(e)} It needs you now.`, "bad");
   }
