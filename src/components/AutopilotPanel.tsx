@@ -174,6 +174,14 @@ export function RulesForm() {
   );
 }
 
+// Today's alerts show the time; older ones (the demo shop's history) show the date.
+const when = (at: string) => {
+  const d = new Date(at);
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" });
+};
+
 // What autopilot and PayPal's webhooks did, newest first.
 export function AlertsFeed({ cases, mode, limit = 6 }: { cases: CaseRecord[]; mode?: "mock" | "sandbox"; limit?: number }) {
   const feed = cases
@@ -195,7 +203,7 @@ export function AlertsFeed({ cases, mode, limit = 6 }: { cases: CaseRecord[]; mo
         <li key={`${a.c.id}-${a.at}-${i}`} className="flex gap-2 text-sm">
           <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: TONE[a.tone] }} />
           <Link href={`/cases/${a.c.id}`} className="hover:underline">
-            <span className="text-muted tabular">{new Date(a.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>{" "}
+            <span className="text-muted tabular">{when(a.at)}</span>{" "}
             <span className="font-medium">{a.c.dispute.disputed_transactions[0]?.buyer?.name ?? a.c.id}:</span> {a.text}
           </Link>
         </li>

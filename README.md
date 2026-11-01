@@ -50,6 +50,7 @@ Seven grids: the dispute queue, the outcomes ledger, the dispute shield, the dis
 - **CSV export** with `columnKeys` that include hidden export-only columns and a `processCellCallback` for dates.
 - **Also:** React cell renderers (risk badges, score bars, deadlines, next-step buttons), tooltips, `wrapText` with `autoHeight` rows, `domLayout="autoHeight"`, custom comparators and multi-column sort.
 - **AG Charts Community** linked both ways with the outcomes grid: charts drawn from the filtered rows, a bar click filters the grid.
+- **Optional Enterprise:** set `AG_GRID_LICENSE_KEY` on the server and the outcomes ledger groups by claim type (row grouping panel, sum totals per group and a grand total) and each dispute expands into a master-detail grid of the agent's findings. Without the key, the Enterprise bundle is never downloaded and every grid stays Community, with no watermark. The hosted demo runs without a key.
 - **Realistic data:** the Simulator starts with 50 closed past disputes (fixed seed, marked as simulated) so the charts, filters and pagination have something to work on.
 
 The inbox works as a triage queue: disputes are ranked by money at risk and days left before PayPal's response deadline, and a savings dashboard shows money protected, hours saved and how many disputes autopilot closed.
