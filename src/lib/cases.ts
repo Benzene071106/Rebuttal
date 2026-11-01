@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { outcomeFor } from "./actions";
+import { historyCases } from "./demo/history";
 import { paypal } from "./paypal";
 import type { ActivityItem, CaseRecord, CaseStatus, Dispute } from "./types";
 import { lruGet, visitor } from "./visitor";
@@ -18,7 +19,9 @@ function load(): Map<string, CaseRecord> {
   const store = g.__rebuttalCases;
   // Mock disputes live in memory only, so a persisted mock case file would point at
   // disputes that no longer exist after a restart.
-  if (paypal().mode === "mock") return lruGet(store.mock, visitor().id, () => new Map());
+  // Each simulator starts with the demo shop's closed history (set REBUTTAL_SEED_HISTORY=0 to skip).
+  if (paypal().mode === "mock")
+    return lruGet(store.mock, visitor().id, () => new Map(process.env.REBUTTAL_SEED_HISTORY === "0" ? [] : historyCases().map((c) => [c.id, c])));
   if (!store.sandbox) {
     store.sandbox = new Map();
     try {

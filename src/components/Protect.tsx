@@ -19,11 +19,11 @@ function OrderCell({ data }: ICellRendererParams<Buyer>) {
 const COLS: ColDef<Buyer>[] = [
   { field: "name", headerName: "Buyer", flex: 1, minWidth: 150 },
   { field: "email", headerName: "PayPal email", flex: 1.1, minWidth: 180, cellClass: "text-muted" },
-  { field: "disputes", headerName: "Disputes", width: 110, type: "rightAligned", sort: "desc" },
+  { field: "disputes", headerName: "Disputes", width: 130, type: "rightAligned", sort: "desc", sortIndex: 1, filter: "agNumberColumnFilter" },
   { field: "disputed", headerName: "Disputed", width: 120, type: "rightAligned", valueFormatter: (p) => money(p.value), cellClass: "tabular" },
   { field: "claims", headerName: "Claims", flex: 1, minWidth: 140 },
   { field: "lastOutcome", headerName: "Latest result", width: 140 },
-  { field: "pendingOrder", headerName: "Open orders", flex: 1.2, minWidth: 220, cellRenderer: OrderCell },
+  { field: "pendingOrder", headerName: "Open orders", flex: 1.2, minWidth: 220, cellRenderer: OrderCell, sort: "asc", sortIndex: 0, comparator: (a, b) => (a ? 0 : 1) - (b ? 0 : 1) },
 ];
 
 // Before you ship: the dispute shield, and the buyers Rebuttal remembers from past disputes.
@@ -78,6 +78,9 @@ export default function Protect() {
             columnDefs={COLS}
             domLayout="autoHeight"
             rowHeight={48}
+            pagination
+            paginationPageSize={10}
+            paginationPageSizeSelector={[10, 25, 50]}
             getRowId={(p) => p.data.email}
             defaultColDef={{ cellStyle: { display: "flex", alignItems: "center" }, sortable: true }}
             suppressCellFocus

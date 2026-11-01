@@ -1,0 +1,14 @@
+{
+  "key": "JK-1042-1c08c22d833d",
+  "saved_at": "2026-11-01T05:28:52.443Z",
+  "plan": {
+    "plan": "PAUSE_FOR_SELLER",
+    "diagnosis": "PayPal refused the refund of $184 because your PayPal account balance is too low to cover the amount. (Debug ID: 37fe5b821bc24)",
+    "seller_steps": [
+      "Log in to your PayPal account and add funds to your balance.",
+      "Return here and click to retry or complete the refund once funds are available."
+    ],
+    "by": "model",
+    "model": "gemini:gemini-3.5-flash-lite"
+  }
+}

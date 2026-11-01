@@ -107,6 +107,8 @@ export type CaseRecord = {
   error?: string;
   // Shown above the recommendation when it came from a saved run because the AI was unavailable.
   notice?: string;
+  // A simulated past dispute from the demo shop's history (closed, read-only).
+  history?: true;
   // How the case arrived: a PayPal dispute webhook, or the seller opening it from the inbox.
   source?: "webhook" | "inbox";
   // What autopilot did once the investigation finished, and which rule decided it.

@@ -4,7 +4,7 @@ import type { ColDef, ColumnState, GridApi, ICellRendererParams, IRowNode } from
 import { AgGridReact } from "ag-grid-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CaseRecord } from "@/lib/types";
+import type { AutopilotRules, CaseRecord } from "@/lib/types";
 import { AlertsFeed } from "./AutopilotPanel";
 import { useCases } from "./CasesProvider";
 import WelcomeTour from "./WelcomeTour";
@@ -198,9 +198,82 @@ function AgentCell({ data }: ICellRendererParams<Row>) {
   );
 }
 
+// Mirrors bulkBlocker in lib/bulk.ts, so the bar only offers what the server will accept.
+// The server checks again; this only decides what the button says.
+function bulkBlocker(c: CaseRecord, rules: AutopilotRules | null): string | null {
+  if (c.submitted || c.outcome) return "already answered";
+  if (c.status !== "READY" || !c.recommendation) return "not investigated";
+  if (rules && Number(c.dispute.dispute_amount.value) > rules.max_auto_amount) return `over your $${rules.max_auto_amount} cap`;
+  if (c.recommendation.decision === "OFFER") return "offers need an amount";
+  if (c.trace.some((s) => s.kind === "error")) return "a lookup failed";
+  return null;
+}
+
+// Shown above the queue while rows are ticked: investigate the new ones, or approve the
+// agent's recommended refunds and evidence in one go.
+function BulkBar({ selected, rules, viewOnly, onDone, clear }: { selected: CaseRecord[]; rules: AutopilotRules | null; viewOnly: boolean; onDone: (msg: string) => void; clear: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => setConfirm(false), [selected]);
+  const fresh = selected.filter((c) => c.status === "NEW" || c.status === "ERROR");
+  const ready = selected.filter((c) => !bulkBlocker(c, rules));
+  const blocked = selected.filter((c) => bulkBlocker(c, rules) && !fresh.includes(c));
+  const sum = (xs: CaseRecord[]) => xs.reduce((t, c) => t + Number(c.dispute.dispute_amount.value), 0);
+  const refunds = ready.filter((c) => c.recommendation?.decision === "REFUND");
+
+  async function investigate() {
+    setBusy("investigate");
+    // Saved investigations replay in a few seconds each; run them side by side.
+    await Promise.all(fresh.map((c) => fetch(`/api/cases/${c.id}/analyze`, { method: "POST" }).then((r) => r.text()).catch(() => null)));
+    setBusy(null);
+    onDone(`Investigated ${fresh.length} dispute${fresh.length === 1 ? "" : "s"}.`);
+  }
+  async function approveAll() {
+    if (!confirm) return setConfirm(true);
+    setBusy("approve");
+    const res = await fetch("/api/cases/bulk-approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: ready.map((c) => c.id) }) });
+    const j = await res.json().catch(() => ({}));
+    setBusy(null);
+    setConfirm(false);
+    if (!res.ok) return onDone(j.error ?? "Bulk approve failed.");
+    const parts = [`Sent ${j.approved.length} response${j.approved.length === 1 ? "" : "s"} to PayPal`];
+    if (j.skipped.length) parts.push(`${j.skipped.length} skipped`);
+    if (j.failed.length) parts.push(`${j.failed.length} paused: open them to see why`);
+    clear();
+    onDone(parts.join(", ") + ".");
+  }
+
+  return (
+    <div role="region" aria-label="Bulk actions" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)" }}>
+      <span className="font-semibold">{selected.length} selected · {money(sum(selected))}</span>
+      {fresh.length ? (
+        <button onClick={investigate} disabled={busy !== null || viewOnly} className={BUTTON.secondary}>
+          {busy === "investigate" ? "Investigating..." : `Investigate ${fresh.length}`}
+        </button>
+      ) : null}
+      <button onClick={approveAll} disabled={!ready.length || busy !== null || viewOnly} className={BUTTON.primary}>
+        {busy === "approve"
+          ? "Sending..."
+          : confirm
+            ? `Confirm: send ${ready.length} to PayPal (${money(sum(ready))})`
+            : `Approve ${ready.length} recommended response${ready.length === 1 ? "" : "s"}`}
+      </button>
+      <span className="text-xs text-muted">
+        {ready.length ? `${refunds.length} refund${refunds.length === 1 ? "" : "s"}, ${ready.length - refunds.length} with evidence. ` : ""}
+        {blocked.length ? `${blocked.length} need${blocked.length === 1 ? "s" : ""} you: ${[...new Set(blocked.map((c) => bulkBlocker(c, rules)))].join(", ")}.` : `Never above your $${rules?.max_auto_amount ?? 250} cap, never offers.`}
+      </span>
+      <button onClick={clear} className={`${BUTTON.ghost} ml-auto`}>Clear</button>
+    </div>
+  );
+}
+
 export default function Inbox() {
   const router = useRouter();
-  const { data, error, rules } = useCases();
+  const { data, error, rules, reload } = useCases();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Read the ticked disputes from the latest data, so the bar follows autopilot and PayPal.
+  const selected = useMemo(() => (data?.cases ?? []).filter((c) => selectedIds.includes(c.id) && !c.submitted && !c.outcome), [data, selectedIds]);
+  const [flash, setFlash] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [totals, setTotals] = useState<Totals | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -220,7 +293,7 @@ export default function Inbox() {
   }, [expanded]);
 
   const rows = useMemo<Row[]>(
-    () => (data?.cases ?? []).flatMap((c) => (expanded.has(c.id) ? [c, { ...c, id: `${c.id}:detail`, detail: true as const }] : [c])),
+    () => (data?.cases ?? []).filter((c) => !c.history).flatMap((c) => (expanded.has(c.id) ? [c, { ...c, id: `${c.id}:detail`, detail: true as const }] : [c])),
     [data, expanded],
   );
 
@@ -255,7 +328,7 @@ export default function Inbox() {
         cellRenderer: BuyerCell,
         cellRendererSelector: pinned(TotalsLabel),
         flex: 1.6,
-        minWidth: 190,
+        minWidth: 170,
         valueGetter: (p) => p.data?.dispute?.disputed_transactions[0]?.buyer?.name,
         getQuickFilterText: (p) => {
           const t = p.data?.dispute?.disputed_transactions[0];
@@ -277,7 +350,7 @@ export default function Inbox() {
         colId: "stage",
         headerName: "Stage",
         flex: 0.7,
-        minWidth: 100,
+        minWidth: 92,
         valueGetter: (p) => stageOf(p.data),
         cellRendererSelector: pinned(blank),
         filter: "agTextColumnFilter",
@@ -314,7 +387,7 @@ export default function Inbox() {
         cellRenderer: DueCell,
         cellRendererSelector: pinned(blank),
         flex: 0.8,
-        minWidth: 110,
+        minWidth: 96,
         valueGetter: (p) => (p.data?.submitted ? 999 : daysLeft(p.data?.dispute?.seller_response_due_date)),
       },
       {
@@ -412,8 +485,22 @@ export default function Inbox() {
           aria-label="Search disputes"
           className="w-full max-w-sm rounded-md border border-line bg-panel px-3 py-2 text-sm"
         />
-        <span className="text-xs text-muted">Click ▶ for the agent&apos;s reasoning, or a row to open the dispute.</span>
+        <span className="text-xs text-muted">Tick rows to act on several at once. Click ▶ for the agent&apos;s reasoning, or a row to open it.</span>
       </div>
+
+      {flash ? <p role="status" className="text-sm" style={{ color: "var(--fight)" }}>{flash}</p> : null}
+      {selected.length ? (
+        <BulkBar
+          selected={selected}
+          rules={rules}
+          viewOnly={Boolean(data?.viewOnly)}
+          clear={() => grid.current?.api.deselectAll()}
+          onDone={(msg) => {
+            setFlash(msg);
+            reload();
+          }}
+        />
+      ) : null}
 
       <div data-tour="grid">
         <AgGridReact<Row>
@@ -447,8 +534,23 @@ export default function Inbox() {
           pinnedBottomRowData={totals ? [{ id: `totals-${JSON.stringify(totals)}`, totals } as Row] : []}
           getRowId={(p) => p.data.id}
           // The chevron and the detail row's own link handle their clicks; AG Grid still reports them as row clicks.
+          // Community row selection: checkboxes only on open disputes the seller can act on.
+          rowSelection={{
+            mode: "multiRow",
+            checkboxes: true,
+            headerCheckbox: true,
+            selectAll: "filtered",
+            hideDisabledCheckboxes: true,
+            enableClickSelection: false,
+            isRowSelectable: (n) => Boolean(n.data && !n.data.detail && !n.data.totals && !n.data.submitted && !n.data.outcome && n.data.status !== "ANALYZING"),
+          }}
+          selectionColumnDef={{ width: 48, minWidth: 48, maxWidth: 48, pinned: "left", resizable: false, suppressMovable: true }}
+          onSelectionChanged={(e) => {
+            const picked = e.api.getSelectedRows().filter((r) => !r.detail).map((r) => r.id);
+            setSelectedIds((cur) => (cur.join() === picked.join() ? cur : picked));
+          }}
           onRowClicked={(e) => {
-            const fromControl = (e.event?.target as HTMLElement | null)?.closest("button, a");
+            const fromControl = (e.event?.target as HTMLElement | null)?.closest("button, a, input, .ag-selection-checkbox");
             if (e.data && !e.node.rowPinned && !e.data.detail && !fromControl) router.push(`/cases/${e.data.id}`);
           }}
           getRowClass={(p) => (p.node.rowPinned ? "font-medium" : isDetail(p.node) ? undefined : "cursor-pointer")}

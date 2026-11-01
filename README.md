@@ -34,12 +34,23 @@ The app has three pages, so a seller sees what matters first:
 
 Autopilot rules live in a drawer (**Autopilot rules**, top right), demo controls in **Simulator tools**, and first-time visitors get a 3-step tour.
 
-The grids and charts are **AG Grid** and **AG Charts** (both Community, free):
+### AG Grid features used (all Community, no Enterprise license)
 
-- Two charts on Insights, **money by claim type** and **what the agent decided**, are drawn from the rows the outcomes grid is showing. Filter the grid and the charts follow. Click a bar and the grid filters to that claim type.
-- Each dispute row expands into a full-width row with the agent's headline, its win estimate and the facts for and against the seller, so the seller can triage without opening the case.
-- Cells flash when autopilot or PayPal changes a dispute, and the seller's column order, widths and sort are kept between visits.
-- On Protect, the dispute shield is a grid sorted by risk, with a risk badge and score bar in each row and the agent's findings in an expandable detail row.
+Seven grids: the dispute queue, the outcomes ledger, the dispute shield, the dispute memory, the autopilot rules, the self-healing incident log and the evidence trail on each case.
+
+- **Custom Rebuttal theme (Theming API):** `themeQuartz` with the `iconSetQuartzBold`, `inputStyleBordered` and `checkboxStyleDefault` parts and about 30 params (selection, hover, zebra rows, editing and invalid borders, focus ring, header and pinned-row rules), all set from the app's CSS variables, so all seven grids follow light and dark mode with no grid CSS overrides.
+- **Row selection for bulk approve:** multi-row checkboxes, a header select-all that respects filters, `isRowSelectable` so only open disputes can be ticked, hidden disabled checkboxes and a pinned selection column. The seller ticks rows and approves the agent's refunds and evidence in one click; the server checks the $250 hard cap and the guardrails again for every row.
+- **Inline cell editing with validation:** the autopilot rules are an editable grid. `cellEditorSelector` picks `agCheckboxCellEditor` or `agNumberCellEditor` (min, max, precision, stepper) per row, a `valueSetter` writes into a draft, and every cell is validated against the others (the refund limit can't exceed the hard cap) with the error shown in the cell. Save stays disabled until all cells pass.
+- **Filtering:** quick filter with a custom `getQuickFilterText`, floating text and number filters, an `agDateColumnFilter` with a calendar-day comparator, and `setColumnFilterModel` driven by chart clicks.
+- **Full-width detail rows** (`isFullWidthRow`, `fullWidthCellRenderer`, `getRowHeight`), kept under their parent through any sort by `postSortRows`.
+- **Pinned bottom totals row** recalculated from `forEachNodeAfterFilter`, drawn with `cellRendererSelector`.
+- **Pagination** with a page-size selector on the outcomes ledger and the dispute memory.
+- **Live updates:** delta updates through `getRowId` and `enableCellChangeFlash` when autopilot or PayPal changes a dispute.
+- **Saved layout:** column order, widths and sort persisted with `getColumnState` and `applyColumnState`.
+- **CSV export** with `columnKeys` that include hidden export-only columns and a `processCellCallback` for dates.
+- **Also:** React cell renderers (risk badges, score bars, deadlines, next-step buttons), tooltips, `wrapText` with `autoHeight` rows, `domLayout="autoHeight"`, custom comparators and multi-column sort.
+- **AG Charts Community** linked both ways with the outcomes grid: charts drawn from the filtered rows, a bar click filters the grid.
+- **Realistic data:** the Simulator starts with 50 closed past disputes (fixed seed, marked as simulated) so the charts, filters and pagination have something to work on.
 
 The inbox works as a triage queue: disputes are ranked by money at risk and days left before PayPal's response deadline, and a savings dashboard shows money protected, hours saved and how many disputes autopilot closed.
 

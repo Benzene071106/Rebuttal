@@ -27,14 +27,26 @@ function ResultCell({ data }: ICellRendererParams<CaseRecord>) {
 
 const COLS: ColDef<CaseRecord>[] = [
   { colId: "id", headerName: "Dispute ID", hide: true, valueGetter: (p) => p.data?.id },
-  { colId: "buyer", headerName: "Buyer", flex: 1.2, minWidth: 150, valueGetter: (p) => p.data?.dispute.disputed_transactions[0]?.buyer?.name },
-  { colId: "claim", headerName: "Claim", flex: 1, minWidth: 130, valueGetter: (p) => p.data && REASON_LABEL[p.data.dispute.reason], filter: "agTextColumnFilter", floatingFilter: true },
-  { colId: "amount", headerName: "Amount", width: 110, type: "rightAligned", valueGetter: (p) => Number(p.data?.dispute.dispute_amount.value ?? 0), valueFormatter: (p) => money(p.value), cellClass: "tabular" },
-  { colId: "decision", headerName: "Decision", width: 130, valueGetter: (p) => decisionOf(p.data), filter: "agTextColumnFilter", floatingFilter: true },
-  { colId: "by", headerName: "Answered by", width: 130, valueGetter: (p) => (p.data?.submitted ? (p.data.submitted.by === "autopilot" ? "Autopilot" : "You") : "") },
-  { colId: "result", headerName: "Result", width: 140, valueGetter: (p) => p.data?.outcome?.result ?? (p.data ? statusLabel(p.data) : ""), cellRenderer: ResultCell },
-  { colId: "kept", headerName: "Kept", width: 110, type: "rightAligned", valueGetter: (p) => p.data?.outcome?.amount_kept ?? 0, valueFormatter: (p) => money(p.value), cellClass: "tabular" },
-  { colId: "refunded", headerName: "Refunded", width: 110, type: "rightAligned", valueGetter: (p) => p.data?.outcome?.amount_lost ?? 0, valueFormatter: (p) => money(p.value), cellClass: "tabular" },
+  { colId: "buyer", headerName: "Buyer", flex: 1.2, minWidth: 140, valueGetter: (p) => p.data?.dispute.disputed_transactions[0]?.buyer?.name, tooltipValueGetter: (p) => p.data?.dispute.disputed_transactions[0]?.items?.[0]?.item_description, filter: "agTextColumnFilter" },
+  { colId: "claim", headerName: "Claim", flex: 1, minWidth: 120, valueGetter: (p) => p.data && REASON_LABEL[p.data.dispute.reason], filter: "agTextColumnFilter", floatingFilter: true },
+  { colId: "amount", headerName: "Amount", width: 100, type: "rightAligned", valueGetter: (p) => Number(p.data?.dispute.dispute_amount.value ?? 0), valueFormatter: (p) => money(p.value), cellClass: "tabular", filter: "agNumberColumnFilter" },
+  { colId: "decision", headerName: "Decision", width: 120, valueGetter: (p) => decisionOf(p.data), filter: "agTextColumnFilter", floatingFilter: true },
+  { colId: "by", headerName: "Answered by", width: 120, valueGetter: (p) => (p.data?.submitted ? (p.data.submitted.by === "autopilot" ? "Autopilot" : "You") : "") },
+  { colId: "result", headerName: "Result", width: 120, valueGetter: (p) => p.data?.outcome?.result ?? (p.data ? statusLabel(p.data) : ""), cellRenderer: ResultCell },
+  { colId: "kept", headerName: "Kept", width: 100, type: "rightAligned", valueGetter: (p) => p.data?.outcome?.amount_kept ?? 0, valueFormatter: (p) => money(p.value), cellClass: "tabular" },
+  {
+    colId: "closed",
+    headerName: "Closed",
+    width: 110,
+    valueGetter: (p) => (p.data?.outcome ? new Date(p.data.outcome.at) : null),
+    valueFormatter: (p) => (p.value ? (p.value as Date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Open"),
+    filter: "agDateColumnFilter",
+    // Compare calendar days, not timestamps.
+    filterParams: { comparator: (day: Date, v: Date | null) => (!v ? -1 : new Date(v.getFullYear(), v.getMonth(), v.getDate()).getTime() - day.getTime()) },
+    comparator: (a: Date | null, b: Date | null) => (a?.getTime() ?? Infinity) - (b?.getTime() ?? Infinity),
+    sort: "desc",
+  },
+  { colId: "refunded", headerName: "Refunded", width: 110, flex: 0.5, type: "rightAligned", valueGetter: (p) => p.data?.outcome?.amount_lost ?? 0, valueFormatter: (p) => money(p.value), cellClass: "tabular" },
 ];
 
 // What the agent did: savings, linked charts over an outcomes ledger, the autopilot
@@ -64,7 +76,7 @@ export default function Insights() {
   }, []);
 
   function exportCsv() {
-    grid.current?.api.exportDataAsCsv({ fileName: `rebuttal-outcomes-${new Date().toISOString().slice(0, 10)}.csv`, columnKeys: ["id", "buyer", "claim", "amount", "decision", "by", "result", "kept", "refunded"] });
+    grid.current?.api.exportDataAsCsv({ fileName: `rebuttal-outcomes-${new Date().toISOString().slice(0, 10)}.csv`, columnKeys: ["id", "buyer", "claim", "amount", "decision", "by", "result", "closed", "kept", "refunded"], processCellCallback: (p) => (p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value) });
   }
 
   return (
@@ -85,7 +97,7 @@ export default function Insights() {
 
       <Card
         title="Outcomes ledger"
-        subtitle="The charts above follow this grid's filters. Click a row to open the dispute."
+        subtitle={`The charts above follow this grid's filters (try the Closed date filter). Click a row to open it.${data?.cases.some((c) => c.history) ? ` Includes ${data.cases.filter((c) => c.history).length} simulated past disputes from the demo shop.` : ""}`}
         right={<button onClick={exportCsv} disabled={!data?.cases.length} className={BUTTON.secondary}>Export outcomes (CSV)</button>}
       >
         <AgGridReact<CaseRecord>
@@ -95,6 +107,10 @@ export default function Insights() {
           columnDefs={COLS}
           domLayout="autoHeight"
           rowHeight={48}
+          pagination
+          paginationPageSize={10}
+          paginationPageSizeSelector={[10, 25, 50, 100]}
+          tooltipShowDelay={400}
           getRowId={(p) => p.data.id}
           onRowClicked={(e) => e.data && router.push(`/cases/${e.data.id}`)}
           getRowClass={() => "cursor-pointer"}

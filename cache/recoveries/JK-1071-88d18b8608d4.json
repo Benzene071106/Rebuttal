@@ -1,0 +1,14 @@
+{
+  "key": "JK-1071-88d18b8608d4",
+  "saved_at": "2026-11-01T05:31:37.772Z",
+  "plan": {
+    "plan": "PAUSE_FOR_SELLER",
+    "diagnosis": "PayPal could not process your $142.00 refund because your PayPal balance is too low to cover the amount (error code INSUFFICIENT_FUNDS, debug ID: baf946deb093a).",
+    "seller_steps": [
+      "Log in to your PayPal account and add funds to your balance.",
+      "Return here and retry the refund once the funds are available."
+    ],
+    "by": "model",
+    "model": "gemini:gemini-3.5-flash-lite"
+  }
+}
