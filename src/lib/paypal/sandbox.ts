@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Dispute } from "../types";
+import { cachedDisputeList, type ListItem } from "./dispute-list-cache";
 import type { EvidenceSubmission, PayPalGateway } from "./gateway";
 import { evidencePdf } from "./evidence-pdf";
 import { makeToolkit, toolkitDefs } from "./toolkit";
@@ -83,10 +84,11 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
       return [];
     },
 
-    async listDisputes() {
-      const list = await toolkit("list_disputes", { page_size: 50 });
-      const items: Array<{ dispute_id: string }> = list.items ?? [];
-      return Promise.all(items.map((d) => toolkit("get_dispute", { dispute_id: d.dispute_id }) as Promise<Dispute>));
+    listDisputes() {
+      return cachedDisputeList(
+        async () => ((await toolkit("list_disputes", { page_size: 50 })).items ?? []) as ListItem[],
+        (id) => toolkit("get_dispute", { dispute_id: id }) as Promise<Dispute>,
+      );
     },
 
     getDispute: (id) => toolkit("get_dispute", { dispute_id: id }),
