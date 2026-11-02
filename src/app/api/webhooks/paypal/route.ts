@@ -20,13 +20,15 @@ export async function POST(req: Request) {
 async function handle(req: Request) {
   const event = await req.json().catch(() => null);
   if (!event?.event_type) return Response.json({ error: "Bad payload" }, { status: 400 });
+  // Ignore other event types before verifying, so an app subscribed to more events
+  // (or a missing PAYPAL_WEBHOOK_ID) never makes PayPal retry events we don't use.
+  if (!String(event.event_type).startsWith("CUSTOMER.DISPUTE.")) return Response.json({ ignored: true });
   const gw = paypal();
   try {
     if (!(await gw.verifyWebhook(req.headers, event))) return Response.json({ error: "Signature check failed" }, { status: 401 });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
-  if (!String(event.event_type).startsWith("CUSTOMER.DISPUTE.")) return Response.json({ ignored: true });
   if (!event.resource?.dispute_id) return Response.json({ error: "No dispute_id" }, { status: 400 });
 
   let ingested;
