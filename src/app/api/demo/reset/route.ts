@@ -9,8 +9,8 @@ import { withVisitor } from "@/lib/visitor";
 export const POST = withVisitor(async () => {
   if (paypal().mode !== "mock") return Response.json({ error: "Reset is only available in the Simulator." }, { status: 400 });
   resetMock();
-  resetCases();
+  await resetCases();
   resetShield();
-  resetIncidents();
+  await resetIncidents();
   return Response.json({ ok: true });
 });

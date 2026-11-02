@@ -41,10 +41,10 @@ describe("evaluateRules", () => {
 });
 
 describe("autopilot", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
-    setRules({ ...DEFAULT_RULES });
+    await resetCases();
+    await setRules({ ...DEFAULT_RULES });
   });
 
   // The fourth simulator dispute is the $28 untracked print; its saved investigation says REFUND.
@@ -67,13 +67,13 @@ describe("autopilot", () => {
     expect((await paypal().getDispute(c.id)).dispute_outcome?.outcome_code).toBe("RESOLVED_BUYER_FAVOUR");
     expect(done?.activity?.map((a) => a.text).join("\n")).toMatch(/PayPal webhook[\s\S]*Autopilot refunded \$28\.00/);
 
-    const s = stats(listCases());
+    const s = stats(await listCases());
     expect(s.autopilot).toBe(1);
     expect(s.hours_saved).toBe(0.8);
   }, 20_000);
 
   it("leaves the case for the seller and says why when a rule doesn't allow it", async () => {
-    setRules({ ...DEFAULT_RULES, auto_refund_max: 10 });
+    await setRules({ ...DEFAULT_RULES, auto_refund_max: 10 });
     const { case: c } = await fileByWebhook();
     const done = await runAutopilot(c.id);
     expect(done?.autopilot?.action).toBe("NEEDS_APPROVAL");
@@ -86,6 +86,6 @@ describe("autopilot", () => {
     const { case: c } = await fileByWebhook();
     const again = await ingestDisputeEvent({ event_type: "CUSTOMER.DISPUTE.CREATED", resource: { dispute_id: c.id } });
     expect(again.investigate).toBe(false);
-    expect(getCase(c.id)?.activity).toHaveLength(1);
+    expect((await getCase(c.id))?.activity).toHaveLength(1);
   });
 });

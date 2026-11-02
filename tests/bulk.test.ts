@@ -16,34 +16,34 @@ const rec = (decision: Recommendation["decision"]): Recommendation => ({
 });
 
 describe("bulk approve", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
-    resetRules();
-    resetIncidents();
+    await resetCases();
+    await resetRules();
+    await resetIncidents();
   });
 
   it("sends the recommended refunds and evidence, and leaves offers, big amounts and lookup errors to the seller", async () => {
     const cases = await syncCases();
     const [a, b, c] = cases;
-    updateCase(a.id, { status: "READY", recommendation: rec("REFUND") });
-    updateCase(b.id, { status: "READY", recommendation: rec("OFFER") });
-    updateCase(c.id, { status: "READY", recommendation: rec("FIGHT"), trace: [{ at: "", kind: "error", summary: "lookup failed" }] });
-    setRules({ ...DEFAULT_RULES, max_auto_amount: Math.max(...cases.map((x) => Number(x.dispute.dispute_amount.value))) });
+    await updateCase(a.id, { status: "READY", recommendation: rec("REFUND") });
+    await updateCase(b.id, { status: "READY", recommendation: rec("OFFER") });
+    await updateCase(c.id, { status: "READY", recommendation: rec("FIGHT"), trace: [{ at: "", kind: "error", summary: "lookup failed" }] });
+    await setRules({ ...DEFAULT_RULES, max_auto_amount: Math.max(...cases.map((x) => Number(x.dispute.dispute_amount.value))) });
     const out = await bulkApprove([a.id, b.id, c.id]);
     expect(out.approved.map((x) => x.id)).toEqual([a.id]);
     expect(Object.fromEntries(out.skipped.map((x) => [x.id, x.reason]))).toMatchObject({
       [b.id]: expect.stringContaining("offers"),
       [c.id]: expect.stringContaining("lookup failed"),
     });
-    expect(getCase(a.id)?.submitted?.decision).toBe("REFUND");
-    expect(getCase(b.id)?.submitted).toBeUndefined();
+    expect((await getCase(a.id))?.submitted?.decision).toBe("REFUND");
+    expect((await getCase(b.id))?.submitted).toBeUndefined();
   });
 
   it("enforces the hard cap on the server", async () => {
     const [a] = await syncCases();
-    updateCase(a.id, { status: "READY", recommendation: rec("FIGHT") });
-    setRules({ ...DEFAULT_RULES, auto_refund_max: 0, max_auto_amount: Number(a.dispute.dispute_amount.value) - 1 });
+    await updateCase(a.id, { status: "READY", recommendation: rec("FIGHT") });
+    await setRules({ ...DEFAULT_RULES, auto_refund_max: 0, max_auto_amount: Number(a.dispute.dispute_amount.value) - 1 });
     const out = await bulkApprove([a.id]);
     expect(out.approved).toEqual([]);
     expect(out.skipped[0].reason).toContain("cap");
@@ -52,7 +52,7 @@ describe("bulk approve", () => {
   it("reports a PayPal failure on one dispute without stopping the rest", async () => {
     const cases = await syncCases();
     const small = cases.filter((x) => Number(x.dispute.dispute_amount.value) <= 250).slice(0, 2);
-    for (const x of small) updateCase(x.id, { status: "READY", recommendation: rec("REFUND") });
+    for (const x of small) await updateCase(x.id, { status: "READY", recommendation: rec("REFUND") });
     armFault("INSUFFICIENT_FUNDS");
     const out = await bulkApprove(small.map((x) => x.id));
     expect(out.failed).toHaveLength(1);
@@ -61,7 +61,7 @@ describe("bulk approve", () => {
 
   it("refuses an already answered dispute", async () => {
     const [a, b] = await syncCases();
-    updateCase(a.id, { status: "READY", recommendation: rec("REFUND") });
+    await updateCase(a.id, { status: "READY", recommendation: rec("REFUND") });
     await approve(a.id, { decision: "REFUND", response: "x" });
     const out = await bulkApprove([a.id, b.id]);
     expect(out.skipped.map((x) => x.reason)).toEqual([expect.stringContaining("Already answered"), expect.stringContaining("Not investigated")]);
@@ -88,11 +88,11 @@ describe("demo history", () => {
   it("seeds each simulator unless turned off", async () => {
     process.env.REBUTTAL_SEED_HISTORY = "1";
     resetMock();
-    resetCases();
+    await resetCases();
     const cases = await syncCases();
     expect(cases.filter((c) => c.history)).toHaveLength(HISTORY_SIZE);
     expect(cases.filter((c) => !c.history).length).toBeGreaterThan(0);
     process.env.REBUTTAL_SEED_HISTORY = "0";
-    resetCases();
+    await resetCases();
   });
 });

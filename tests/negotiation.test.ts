@@ -29,8 +29,8 @@ function scripted(moves: Array<Record<string, unknown>>) {
 
 async function mugCase() {
   await syncCases();
-  const c = listCases().find((x) => x.dispute.disputed_transactions[0].invoice_number === "JK-1057")!;
-  return updateCase(c.id, { status: "READY", recommendation: rec });
+  const c = (await listCases()).find((x) => x.dispute.disputed_transactions[0].invoice_number === "JK-1057")!;
+  return await updateCase(c.id, { status: "READY", recommendation: rec });
 }
 
 describe("negotiation guardrails", () => {
@@ -45,9 +45,9 @@ describe("negotiation guardrails", () => {
 });
 
 describe("negotiate", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
+    await resetCases();
   });
 
   it("haggles with the buyer through PayPal offers and settles inside the ceiling", async () => {

@@ -2,23 +2,26 @@ import { ALL_TOOLS_ENABLED, PayPalAgentToolkit } from "@paypal/agent-toolkit/ope
 import { AGENT_TOOL_NAMES, type ToolDef } from "./gateway";
 
 export const SANDBOX_API_BASE = "https://api-m.sandbox.paypal.com";
+export const LIVE_API_BASE = "https://api-m.paypal.com";
+export type PayPalEnv = "sandbox" | "live";
+export const apiBase = (env: PayPalEnv) => (env === "live" ? LIVE_API_BASE : SANDBOX_API_BASE);
 
-export function makeToolkit(clientId: string, clientSecret: string) {
+export function makeToolkit(clientId: string, clientSecret: string, env: PayPalEnv = "sandbox") {
   const tk = new PayPalAgentToolkit({
     clientId,
     clientSecret,
-    configuration: { actions: ALL_TOOLS_ENABLED, context: { sandbox: true } },
+    configuration: { actions: ALL_TOOLS_ENABLED, context: { sandbox: env === "sandbox" } },
   });
-  useApiM(tk);
+  useApiM(tk, env);
   return tk;
 }
 
 // Toolkit v1.11 sends its token and tool calls to the legacy api.sandbox.paypal.com host,
 // while our REST calls use api-m.sandbox.paypal.com, PayPal's documented host. Point the
 // toolkit at api-m too so the app needs one allowed host (some networks block the other).
-function useApiM(tk: PayPalAgentToolkit) {
+function useApiM(tk: PayPalAgentToolkit, env: PayPalEnv) {
   const client = (tk as unknown as { client?: { _baseUrl?: string } }).client;
-  if (client && typeof client._baseUrl === "string") client._baseUrl = SANDBOX_API_BASE;
+  if (client && typeof client._baseUrl === "string") client._baseUrl = apiBase(env);
 }
 
 // The toolkit ships OpenAI-style function definitions; Claude takes the same JSON

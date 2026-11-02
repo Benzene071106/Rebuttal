@@ -7,5 +7,5 @@ import { withVisitor } from "@/lib/visitor";
 // The self-healing log: PayPal calls that failed and how the agent recovered.
 export const GET = withVisitor(async () => {
   await connection();
-  return Response.json({ incidents: listIncidents(), armed: paypal().mode === "mock" ? armedFault() : null });
+  return Response.json({ incidents: await listIncidents(), armed: paypal().mode === "mock" ? armedFault() : null });
 });

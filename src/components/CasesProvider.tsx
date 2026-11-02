@@ -7,7 +7,13 @@ export type Stats = {
   open: number; at_risk: number; kept: number; won: number; decided: number; rulings: number;
   answered: number; autopilot: number; hours_saved: number; due_soon: number; due_soon_amount: number;
 };
-export type Payload = { mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?: boolean; cases: CaseRecord[]; stats: Stats };
+export type Account = { email: string; paypal_env: "sandbox" | "live" | null };
+export type Payload = {
+  mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?: boolean;
+  // Seller accounts: whether this server offers them, and who is signed in.
+  accounts?: boolean; account?: Account | null;
+  cases: CaseRecord[]; stats: Stats;
+};
 
 type Ctx = {
   data: Payload | null;

@@ -1,47 +1,24 @@
-// Case state for the dispute inbox. Kept in memory and mirrored to data/cases.json
-// so a restart of the dev server keeps the demo history.
+// Case state for the dispute inbox, kept in the tenant's store (see store/index.ts):
+// Postgres for sellers when DATABASE_URL is set, memory for simulator visitors.
 
-import fs from "node:fs";
-import path from "node:path";
 import { outcomeFor } from "./actions";
 import { historyCases } from "./demo/history";
 import { paypal } from "./paypal";
+import { storeFor } from "./store";
 import type { ActivityItem, CaseRecord, CaseStatus, Dispute } from "./types";
-import { lruGet, visitor } from "./visitor";
+import { tenant, visitor } from "./visitor";
 
-const FILE = path.join(process.cwd(), "data", "cases.json");
-// Simulator cases belong to each visitor, like the simulated disputes behind them; the
-// live sandbox is one real PayPal account, so its cases are shared.
-const g = globalThis as unknown as { __rebuttalCases?: { sandbox?: Map<string, CaseRecord>; mock: Map<string, Map<string, CaseRecord>> } };
-
-function load(): Map<string, CaseRecord> {
-  g.__rebuttalCases ??= { mock: new Map() };
-  const store = g.__rebuttalCases;
-  // Mock disputes live in memory only, so a persisted mock case file would point at
-  // disputes that no longer exist after a restart.
-  // Each simulator starts with the demo shop's closed history (set REBUTTAL_SEED_HISTORY=0 to skip).
-  if (paypal().mode === "mock")
-    return lruGet(store.mock, visitor().id, () => new Map(process.env.REBUTTAL_SEED_HISTORY === "0" ? [] : historyCases().map((c) => [c.id, c])));
-  if (!store.sandbox) {
-    store.sandbox = new Map();
-    try {
-      store.sandbox = new Map((JSON.parse(fs.readFileSync(FILE, "utf8")) as CaseRecord[]).map((c) => [c.id, c]));
-    } catch {
-      // first run
-    }
-  }
-  return store.sandbox;
+// The current tenant's store. A simulator starts with the demo shop's closed history
+// (set REBUTTAL_SEED_HISTORY=0 to skip).
+async function store() {
+  const s = storeFor(tenant());
+  if (visitor().mode === "mock") await s.seedCases(() => (process.env.REBUTTAL_SEED_HISTORY === "0" ? [] : historyCases()));
+  return s;
 }
 
-function persist() {
-  if (paypal().mode !== "sandbox") return;
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify([...load().values()], null, 2));
-}
-
-export function upsertFromDispute(d: Dispute): CaseRecord {
-  const map = load();
-  const existing = map.get(d.dispute_id);
+export async function upsertFromDispute(d: Dispute): Promise<CaseRecord> {
+  const s = await store();
+  const existing = await s.getCase(d.dispute_id);
   const rec: CaseRecord = existing
     ? { ...existing, dispute: d, updated_at: new Date().toISOString() }
     : { id: d.dispute_id, dispute: d, status: "NEW", trace: [], updated_at: new Date().toISOString() };
@@ -51,46 +28,44 @@ export function upsertFromDispute(d: Dispute): CaseRecord {
     const o = outcomeFor(d, rec.submitted?.decision);
     if (o) Object.assign(rec, { outcome: o, status: o.result });
   }
-  map.set(rec.id, rec);
-  persist();
+  if (existing) {
+    // Only refresh what PayPal owns, so a concurrent update to the case isn't lost.
+    const patch: Partial<CaseRecord> = { dispute: d, updated_at: rec.updated_at };
+    if (rec.outcome !== existing.outcome) Object.assign(patch, { outcome: rec.outcome, status: rec.status });
+    return (await s.patchCase(rec.id, patch)) ?? rec;
+  }
+  await s.putCase(rec);
   return rec;
 }
 
 export async function syncCases(): Promise<CaseRecord[]> {
   const disputes = await paypal().listDisputes();
-  disputes.forEach(upsertFromDispute);
-  return listCases();
+  for (const d of disputes) await upsertFromDispute(d);
+  return await listCases();
 }
 
-export function listCases(): CaseRecord[] {
-  return [...load().values()].sort((a, b) => b.dispute.create_time.localeCompare(a.dispute.create_time));
+export async function listCases(): Promise<CaseRecord[]> {
+  const all = await (await store()).listCases();
+  return all.sort((a, b) => b.dispute.create_time.localeCompare(a.dispute.create_time));
 }
 
-export function getCase(id: string): CaseRecord | undefined {
-  return load().get(id);
+export async function getCase(id: string): Promise<CaseRecord | undefined> {
+  return (await store()).getCase(id);
 }
 
-export function updateCase(id: string, patch: Partial<CaseRecord> & { status?: CaseStatus }): CaseRecord {
-  const map = load();
-  const cur = map.get(id);
-  if (!cur) throw new Error(`Unknown case ${id}`);
-  const next = { ...cur, ...patch, updated_at: new Date().toISOString() };
-  map.set(id, next);
-  persist();
+export async function updateCase(id: string, patch: Partial<CaseRecord> & { status?: CaseStatus }): Promise<CaseRecord> {
+  const next = await (await store()).patchCase(id, { ...patch, updated_at: new Date().toISOString() });
+  if (!next) throw new Error(`Unknown case ${id}`);
   return next;
 }
 
 // Adds a seller-facing alert to the case; the inbox shows the newest across all cases.
-export function addActivity(id: string, text: string, tone: ActivityItem["tone"] = "info"): CaseRecord | undefined {
-  const c = getCase(id);
-  if (!c) return undefined;
-  return updateCase(id, { activity: [...(c.activity ?? []), { at: new Date().toISOString(), text, tone }].slice(-20) });
+export async function addActivity(id: string, text: string, tone: ActivityItem["tone"] = "info"): Promise<CaseRecord | undefined> {
+  return (await store()).appendActivity(id, { at: new Date().toISOString(), text, tone }, 20);
 }
 
-export function resetCases() {
-  if (paypal().mode === "mock") g.__rebuttalCases?.mock.delete(visitor().id);
-  else if (g.__rebuttalCases) g.__rebuttalCases.sandbox = new Map();
-  persist();
+export async function resetCases() {
+  await storeFor(tenant()).clearCases();
 }
 
 // Manual effort per dispute (pull tracking and order details, read the messages, write

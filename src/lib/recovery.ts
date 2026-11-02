@@ -20,7 +20,8 @@ import { paypal, resetPayPalClient } from "./paypal";
 import type { ToolDef } from "./paypal/gateway";
 import { getRules } from "./rules";
 import type { CaseRecord, Decision, Incident } from "./types";
-import { lruGet, visitor } from "./visitor";
+import { storeFor } from "./store";
+import { tenant, visitor } from "./visitor";
 
 export type PayPalFailure = Incident["paypal"];
 
@@ -64,14 +65,14 @@ export async function withRecovery(c: CaseRecord, action: Decision, amount: numb
       await run();
       if (!failure) return null; // worked first time: no incident
       attempts.push({ at: at(), what: `Retry ${i}: PayPal accepted the ${action === "REFUND" ? "refund" : action === "OFFER" ? "offer" : "evidence"}`, ok: true });
-      const healed = record(c, action, amount, failure, kind, attempts, {
+      const healed = await record(c, action, amount, failure, kind, attempts, {
         plan: "RETRIED",
         diagnosis: kind === "AUTH" ? "PayPal's access token had expired. Rebuttal signed in to PayPal again and repeated the call." : `PayPal was briefly unavailable (${failure.status ?? failure.name}). Rebuttal retried with backoff and the call went through.`,
         seller_steps: [],
         result: "HEALED",
         by: "rules",
       });
-      addActivity(c.id, `Self-healed: PayPal returned ${failure.status ?? ""} ${failure.name} while Rebuttal tried to ${VERB[action]}. ${kind === "AUTH" ? "Rebuttal refreshed its PayPal sign-in" : `Rebuttal retried ${i} time${i === 1 ? "" : "s"}`} and it went through.`, "good");
+      await addActivity(c.id, `Self-healed: PayPal returned ${failure.status ?? ""} ${failure.name} while Rebuttal tried to ${VERB[action]}. ${kind === "AUTH" ? "Rebuttal refreshed its PayPal sign-in" : `Rebuttal retried ${i} time${i === 1 ? "" : "s"}`} and it went through.`, "good");
       return healed;
     } catch (e) {
       failure = parsePayPalError(e);
@@ -89,9 +90,9 @@ export async function withRecovery(c: CaseRecord, action: Decision, amount: numb
   }
 
   const plan = await diagnose(c, action, amount, failure!, kind, attempts, opts.model);
-  const incident = record(c, action, amount, failure!, kind, attempts, { ...plan, result: "WAITING_FOR_SELLER" });
+  const incident = await record(c, action, amount, failure!, kind, attempts, { ...plan, result: "WAITING_FOR_SELLER" });
   const alt = incident.alternative;
-  addActivity(
+  await addActivity(
     c.id,
     `PayPal refused to ${VERB[action]} (${failure!.name}). ${incident.diagnosis}${alt ? ` Proposed instead: ${alt.decision === "OFFER" ? `a ${money(alt.amount)} partial refund` : "fight with evidence"}, waiting for your approval.` : ""}`,
     "warn",
@@ -157,7 +158,7 @@ async function diagnose(c: CaseRecord, action: Decision, amount: number, f: PayP
     dispute: { id: c.id, reason: c.dispute.reason, amount: disputed, stage: c.dispute.dispute_life_cycle_stage, status: c.dispute.status, due: c.dispute.seller_response_due_date },
     ai_recommendation: r ? { decision: r.decision, win_probability: r.win_probability, headline: r.headline } : null,
   };
-  const key = recoveryKey(c, action, f);
+  const key = await recoveryKey(c, action, f);
   const saved = loadPlan(key);
   if (saved) return saved;
   try {
@@ -210,7 +211,7 @@ function rulePlan(action: Decision, f: PayPalFailure, kind: Incident["kind"]): P
   };
 }
 
-function record(c: CaseRecord, action: Decision, amount: number, f: PayPalFailure, kind: Incident["kind"], attempts: Incident["attempts"], rest: Omit<Incident, "id" | "at" | "case_id" | "invoice" | "buyer" | "action" | "amount" | "paypal" | "kind" | "attempts">): Incident {
+async function record(c: CaseRecord, action: Decision, amount: number, f: PayPalFailure, kind: Incident["kind"], attempts: Incident["attempts"], rest: Omit<Incident, "id" | "at" | "case_id" | "invoice" | "buyer" | "action" | "amount" | "paypal" | "kind" | "attempts">): Promise<Incident> {
   const t = c.dispute.disputed_transactions[0];
   const inc: Incident = {
     id: `INC-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
@@ -225,14 +226,11 @@ function record(c: CaseRecord, action: Decision, amount: number, f: PayPalFailur
     attempts,
     ...rest,
   };
-  const list = store();
-  list.unshift(inc);
-  list.splice(50);
-  persist();
+  await storeFor(tenant()).addIncident(inc, KEEP_INCIDENTS);
   // A proposed alternative becomes the case's pending decision, for the seller to approve.
   if (rest.alternative && c.recommendation) {
     const a = rest.alternative;
-    updateCase(c.id, {
+    await updateCase(c.id, {
       status: "READY",
       recommendation: {
         ...c.recommendation,
@@ -247,43 +245,20 @@ function record(c: CaseRecord, action: Decision, amount: number, f: PayPalFailur
   return inc;
 }
 
-// Per-visitor in the simulator; the live sandbox log is shared and saved to disk.
-const FILE = path.join(process.cwd(), "data", "incidents.json");
-const g = globalThis as unknown as { __rebuttalIncidents?: { sandbox?: Incident[]; mock: Map<string, Incident[]> } };
-function store(): Incident[] {
-  g.__rebuttalIncidents ??= { mock: new Map() };
-  const s = g.__rebuttalIncidents;
-  if (visitor().mode === "mock") return lruGet(s.mock, visitor().id, () => []);
-  if (!s.sandbox) {
-    try {
-      s.sandbox = JSON.parse(fs.readFileSync(FILE, "utf8")) as Incident[];
-    } catch {
-      s.sandbox = [];
-    }
-  }
-  return s.sandbox;
+// The incident log, per tenant like cases.
+const KEEP_INCIDENTS = 50;
+export async function listIncidents(): Promise<Incident[]> {
+  return storeFor(tenant()).listIncidents(KEEP_INCIDENTS);
 }
-function persist() {
-  if (visitor().mode === "mock") return;
-  try {
-    fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(store(), null, 2));
-  } catch {
-    // read-only disk: the log stays in memory
-  }
-}
-export function listIncidents(): Incident[] {
-  return store();
-}
-export function resetIncidents() {
-  if (visitor().mode === "mock") g.__rebuttalIncidents?.mock.delete(visitor().id);
+export async function resetIncidents() {
+  if (visitor().mode === "mock") await storeFor(tenant()).clearIncidents();
 }
 
 // Saved diagnoses, like saved investigations, so the hosted demo doesn't spend model
 // quota on the same simulated failure.
 const dir = () => path.join(process.env.REBUTTAL_CACHE_DIR ?? path.join(process.cwd(), "cache", "investigations"), "..", "recoveries");
-function recoveryKey(c: CaseRecord, action: Decision, f: PayPalFailure) {
-  const facts = { invoice: c.dispute.disputed_transactions[0]?.invoice_number ?? c.id, action, error: f.name, status: f.status, rec: c.recommendation?.decision ?? null, limit: getRules().max_auto_amount };
+async function recoveryKey(c: CaseRecord, action: Decision, f: PayPalFailure) {
+  const facts = { invoice: c.dispute.disputed_transactions[0]?.invoice_number ?? c.id, action, error: f.name, status: f.status, rec: c.recommendation?.decision ?? null, limit: (await getRules()).max_auto_amount };
   return `${String(facts.invoice).replace(/[^A-Za-z0-9_-]/g, "")}-${crypto.createHash("sha256").update(JSON.stringify(facts)).digest("hex").slice(0, 12)}`;
 }
 function loadPlan(key: string): Plan | null {

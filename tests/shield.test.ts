@@ -28,9 +28,9 @@ function scripted(email: string, verdict: Record<string, unknown>, orderId: stri
 }
 
 describe("dispute shield", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
+    await resetCases();
     resetShield();
   });
 

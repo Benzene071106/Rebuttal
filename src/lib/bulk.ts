@@ -31,10 +31,10 @@ export type BulkResult = {
 
 export async function bulkApprove(ids: string[]): Promise<BulkResult> {
   if (ids.length > BULK_MAX) throw new Error(`Approve at most ${BULK_MAX} disputes at a time.`);
-  const rules = getRules();
+  const rules = await getRules();
   const out: BulkResult = { approved: [], skipped: [], failed: [] };
   for (const id of [...new Set(ids)]) {
-    const c = getCase(id);
+    const c = await getCase(id);
     const blocker = bulkBlocker(c, rules);
     if (blocker || !c?.recommendation) {
       out.skipped.push({ id, reason: blocker ?? "Not investigated yet." });
@@ -44,7 +44,7 @@ export async function bulkApprove(ids: string[]): Promise<BulkResult> {
     try {
       // One at a time, so the self-healing layer handles each PayPal failure on its own.
       await approve(id, { decision: r.decision, response: r.response_to_paypal, by: "seller" });
-      addActivity(id, `You approved the agent's ${r.decision === "REFUND" ? "refund" : "evidence"} from the queue (bulk approve).`, "good");
+      await addActivity(id, `You approved the agent's ${r.decision === "REFUND" ? "refund" : "evidence"} from the queue (bulk approve).`, "good");
       out.approved.push({ id, decision: r.decision, amount: Number(c.dispute.dispute_amount.value) });
     } catch (e) {
       out.failed.push({ id, error: e instanceof Error ? e.message : String(e) });

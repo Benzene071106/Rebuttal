@@ -1,11 +1,10 @@
-// Seller rules for autopilot. Simulator rules belong to each visitor, like their cases;
-// the live sandbox is one PayPal account, so its rules are shared and saved to disk.
+// Seller rules for autopilot, kept per tenant like cases: each simulator visitor and
+// each seller has their own.
 
-import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
 import type { AutopilotRules, CaseRecord } from "./types";
-import { lruGet, visitor } from "./visitor";
+import { storeFor } from "./store";
+import { tenant, visitor } from "./visitor";
 
 export const DEFAULT_RULES: AutopilotRules = { enabled: true, auto_refund_max: 30, auto_fight_min_win: 0, max_auto_amount: 250, negotiate_max_pct: 0.4 };
 
@@ -17,37 +16,20 @@ export const RulesSchema = z.object({
   negotiate_max_pct: z.number().min(0).max(0.95).default(DEFAULT_RULES.negotiate_max_pct),
 });
 
-const FILE = path.join(process.cwd(), "data", "rules.json");
-const g = globalThis as unknown as { __rebuttalRules?: { sandbox?: AutopilotRules; mock: Map<string, AutopilotRules> } };
-
-export function getRules(): AutopilotRules {
-  g.__rebuttalRules ??= { mock: new Map() };
-  const store = g.__rebuttalRules;
-  if (visitor().mode === "mock") return lruGet(store.mock, visitor().id, () => ({ ...DEFAULT_RULES }));
-  if (!store.sandbox) {
-    try {
-      store.sandbox = RulesSchema.parse(JSON.parse(fs.readFileSync(FILE, "utf8")));
-    } catch {
-      store.sandbox = { ...DEFAULT_RULES };
-    }
-  }
-  return store.sandbox;
+export async function getRules(): Promise<AutopilotRules> {
+  const saved = await storeFor(tenant()).getRules();
+  // Rules saved before a field existed get its default.
+  return saved ? RulesSchema.parse({ ...DEFAULT_RULES, ...saved }) : { ...DEFAULT_RULES };
 }
 
-export function setRules(next: AutopilotRules): AutopilotRules {
+export async function setRules(next: AutopilotRules): Promise<AutopilotRules> {
   const rules = RulesSchema.parse(next);
-  g.__rebuttalRules ??= { mock: new Map() };
-  if (visitor().mode === "mock") g.__rebuttalRules.mock.set(visitor().id, rules);
-  else {
-    g.__rebuttalRules.sandbox = rules;
-    fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(rules, null, 2));
-  }
+  await storeFor(tenant()).setRules(rules);
   return rules;
 }
 
-export function resetRules() {
-  if (visitor().mode === "mock") g.__rebuttalRules?.mock.delete(visitor().id);
+export async function resetRules() {
+  if (visitor().mode === "mock") await storeFor(tenant()).clearRules();
 }
 
 export type RuleVerdict =

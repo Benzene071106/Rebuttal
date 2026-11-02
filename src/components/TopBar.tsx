@@ -62,13 +62,18 @@ export default function TopBar() {
                   aria-pressed={data.mode === m}
                   className={`rounded px-2.5 py-1 ${data.mode === m ? "bg-accent text-panel" : "text-muted hover:text-ink"}`}
                 >
-                  {m === "mock" ? "Simulator" : "Live PayPal sandbox"}
+                  {m === "mock" ? "Simulator" : data.account ? `My PayPal${data.account.paypal_env === "sandbox" ? " (sandbox)" : ""}` : "Live PayPal sandbox"}
                 </button>
               ))}
             </div>
           ) : null}
           {data?.mode === "mock" ? <SimulatorMenu onDone={reload} onError={setError} /> : null}
           <button onClick={() => setSettings(true)} className={BUTTON.secondary}>Autopilot rules</button>
+          {data?.accounts ? (
+            <Link href="/account" aria-current={path === "/account" ? "page" : undefined} className={BUTTON.secondary} title={data.account?.email}>
+              {data.account ? "Account" : "Sign in"}
+            </Link>
+          ) : null}
         </div>
       </div>
       {data?.mode === "sandbox" && data.viewOnly ? (

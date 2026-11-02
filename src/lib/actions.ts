@@ -14,7 +14,7 @@ export type Approval = {
 };
 
 export async function approve(caseId: string, a: Approval): Promise<CaseRecord> {
-  const c = getCase(caseId);
+  const c = await getCase(caseId);
   if (!c) throw new Error(`Unknown case ${caseId}`);
   if (c.submitted) throw new Error("A response was already sent for this dispute.");
   const gw = paypal();
@@ -34,9 +34,9 @@ export async function approve(caseId: string, a: Approval): Promise<CaseRecord> 
       try {
         const invoice = c.dispute.disputed_transactions[0]?.invoice_number;
         const res = await gw.addTracking(txnId, tracking, invoice ? await gw.orderIdForInvoice(invoice) : null);
-        if (res === "added") note(caseId, `Added ${tracking.carrier} tracking ${tracking.tracking_number} to the PayPal transaction.`);
+        if (res === "added") await note(caseId, `Added ${tracking.carrier} tracking ${tracking.tracking_number} to the PayPal transaction.`);
       } catch (e) {
-        note(caseId, `Could not add tracking to the PayPal transaction: ${e instanceof Error ? e.message : e}`, "error");
+        await note(caseId, `Could not add tracking to the PayPal transaction: ${e instanceof Error ? e.message : e}`, "error");
       }
     }
     await withRecovery(c, "FIGHT", Number(c.dispute.dispute_amount.value), () => gw.provideEvidence(caseId, { notes: response, evidence_types: types, tracking }));
@@ -50,7 +50,7 @@ export async function approve(caseId: string, a: Approval): Promise<CaseRecord> 
   }
 
   const dispute = await gw.getDispute(caseId);
-  return updateCase(caseId, {
+  return await updateCase(caseId, {
     dispute,
     status: a.decision === "REFUND" ? "REFUNDED" : "SUBMITTED",
     submitted: { decision: a.decision, at: new Date().toISOString(), response, offer_amount: a.offer_amount, by: a.by ?? "seller" },
@@ -58,19 +58,19 @@ export async function approve(caseId: string, a: Approval): Promise<CaseRecord> 
   });
 }
 
-function note(caseId: string, summary: string, kind: "note" | "error" = "note") {
-  const c = getCase(caseId);
-  if (c) updateCase(caseId, { trace: [...c.trace, { at: new Date().toISOString(), kind, summary }] });
+async function note(caseId: string, summary: string, kind: "note" | "error" = "note") {
+  const c = await getCase(caseId);
+  if (c) await updateCase(caseId, { trace: [...c.trace, { at: new Date().toISOString(), kind, summary }] });
 }
 
 // Sandbox only: ask PayPal to rule on the dispute so the full lifecycle can be shown.
 export async function simulateRuling(caseId: string, outcome: "SELLER_FAVOR" | "BUYER_FAVOR"): Promise<CaseRecord> {
-  const c = getCase(caseId);
+  const c = await getCase(caseId);
   if (!c?.submitted) throw new Error("Send a response before simulating PayPal's ruling.");
   await paypal().simulateRuling(caseId, outcome);
   const dispute = await paypal().getDispute(caseId);
   const o = outcomeFor(dispute, c.submitted.decision);
-  return updateCase(caseId, { dispute, outcome: o, status: o?.result ?? c.status });
+  return await updateCase(caseId, { dispute, outcome: o, status: o?.result ?? c.status });
 }
 
 export function outcomeFor(d: Dispute, decision?: Decision): CaseRecord["outcome"] {
