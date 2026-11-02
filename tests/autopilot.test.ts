@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { runAnalysis } from "../src/lib/analysis";
 import { ingestDisputeEvent, runAutopilot } from "../src/lib/autopilot";
 import { getCase, listCases, resetCases, stats, syncCases } from "../src/lib/cases";
 import { paypal } from "../src/lib/paypal";
@@ -88,4 +89,14 @@ describe("autopilot", () => {
     expect(again.investigate).toBe(false);
     expect(getCase(c.id)?.activity).toHaveLength(1);
   });
+
+  it("waits for the seller's own Investigate click, then still applies the rules", async () => {
+    const { case: c } = await fileByWebhook();
+    const manual = runAnalysis(c.id); // the seller clicks Investigate as the webhook lands
+    const done = await runAutopilot(c.id);
+    await manual;
+    expect(done?.autopilot?.action).toBe("AUTO_REFUNDED");
+    expect(done?.status).toBe("REFUNDED");
+    expect(done?.activity?.map((a) => a.text).join("\n")).not.toContain("Investigation failed");
+  }, 20_000);
 });

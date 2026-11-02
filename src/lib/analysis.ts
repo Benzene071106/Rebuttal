@@ -2,6 +2,7 @@ import { analyzeDispute } from "./agent";
 import { getCase, updateCase } from "./cases";
 import { scriptedModel } from "./dev/scripted-model";
 import { loadInvestigation, saveInvestigation } from "./investigation-cache";
+import { plainError } from "./errors";
 import { withCaseLock } from "./locks";
 import { claudeModel } from "./model";
 import { RateLimitError } from "./model/gemini";
@@ -57,7 +58,7 @@ async function investigate(caseId: string, onStep: ((s: TraceStep) => void) | un
       throw e;
     }
   } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
+    const error = plainError(e);
     // Never mark an answered dispute as failed.
     if (!getCase(caseId)?.submitted) updateCase(caseId, { status: "ERROR", error });
     throw e;

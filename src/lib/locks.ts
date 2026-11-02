@@ -9,19 +9,26 @@ export class CaseBusyError extends Error {
   readonly status = 409;
 }
 
-const held = new Map<string, string>();
+const held = new Map<string, { what: string; done: Promise<void> }>();
 
 // Simulator dispute IDs repeat across visitors, so the key is per visitor and mode.
 const keyFor = (caseId: string) => `${visitor().mode === "mock" ? visitor().id : "sandbox"}:${caseId}`;
 
 export async function withCaseLock<T>(caseId: string, what: string, fn: () => Promise<T>): Promise<T> {
   const key = keyFor(caseId);
-  const busy = held.get(key);
+  const busy = held.get(key)?.what;
   if (busy) throw new CaseBusyError(busy === what ? `${what} is already running for this dispute.` : `Wait: ${busy.toLowerCase()} is still running for this dispute.`);
-  held.set(key, what);
+  let release = () => {};
+  held.set(key, { what, done: new Promise<void>((r) => (release = r)) });
   try {
     return await fn();
   } finally {
     held.delete(key);
+    release();
   }
+}
+
+// Resolves once nothing is running for the dispute (at once if nothing is).
+export async function caseIdle(caseId: string): Promise<void> {
+  for (let h = held.get(keyFor(caseId)); h; h = held.get(keyFor(caseId))) await h.done;
 }

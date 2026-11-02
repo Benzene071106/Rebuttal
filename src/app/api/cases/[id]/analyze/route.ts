@@ -1,4 +1,5 @@
 import { runAnalysis } from "@/lib/analysis";
+import { plainError } from "@/lib/errors";
 import { runAs, viewOnly, visitor, withVisitor } from "@/lib/visitor";
 
 export const maxDuration = 300;
@@ -20,7 +21,7 @@ export const POST = withVisitor(async (req: Request, ctx: RouteContext<"/api/cas
           const rec = await runAnalysis(id, (step) => send({ type: "step", step }), { fresh, savedOnly });
           send({ type: "done", case: rec });
         } catch (e) {
-          send({ type: "error", error: e instanceof Error ? e.message : String(e) });
+          send({ type: "error", error: plainError(e) });
         } finally {
           controller.close();
         }

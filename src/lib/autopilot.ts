@@ -5,6 +5,8 @@
 
 import { approve } from "./actions";
 import { runAnalysis } from "./analysis";
+import { plainError } from "./errors";
+import { CaseBusyError, caseIdle } from "./locks";
 import { addActivity, getCase, updateCase, upsertFromDispute } from "./cases";
 import { paypal } from "./paypal";
 import { RecoveryPausedError } from "./recovery";
@@ -48,11 +50,16 @@ export async function runAutopilot(id: string): Promise<CaseRecord | undefined> 
   try {
     await runAnalysis(id);
   } catch (e) {
-    updateCase(id, { autopilot: { action: "FAILED", reason: errorText(e), at: at() } });
-    addActivity(id, `Investigation failed: ${errorText(e)} Open the dispute to retry.`, "bad");
-    return getCase(id);
+    // The seller pressed Investigate (or approved) first: let that finish, then apply
+    // the rules to its result instead of reporting a failure.
+    if (!(e instanceof CaseBusyError)) return failed(id, e);
+    await caseIdle(id);
+    const now = getCase(id);
+    if (now?.submitted || now?.outcome) return now;
+    if (now?.status !== "READY" || !now.recommendation) return failed(id, new Error(now?.error ?? "The investigation did not finish."));
   }
   const c = getCase(id)!;
+  if (c.submitted || c.outcome) return c;
   const r = c.recommendation!;
   const verdict = evaluateRules(c, getRules());
   const pct = Math.round(r.win_probability * 100);
@@ -77,6 +84,8 @@ export async function runAutopilot(id: string): Promise<CaseRecord | undefined> 
       "good",
     );
   } catch (e) {
+    // The seller answered this dispute themselves while autopilot was deciding.
+    if (e instanceof CaseBusyError || getCase(id)?.submitted) return getCase(id);
     // The recovery agent already logged the incident, alerted the seller and set the case up.
     if (e instanceof RecoveryPausedError) {
       updateCase(id, { autopilot: { action: "FAILED", reason: e.message, at: at() } });
@@ -88,7 +97,13 @@ export async function runAutopilot(id: string): Promise<CaseRecord | undefined> 
   return getCase(id);
 }
 
+function failed(id: string, e: unknown) {
+  updateCase(id, { autopilot: { action: "FAILED", reason: errorText(e), at: new Date().toISOString() } });
+  addActivity(id, `Investigation failed: ${errorText(e)} Open the dispute to retry.`, "bad");
+  return getCase(id);
+}
+
 function errorText(e: unknown) {
-  const m = e instanceof Error ? e.message : String(e);
+  const m = plainError(e);
   return /[.!?]$/.test(m) ? m : `${m}.`;
 }
