@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { RulesForm } from "./AutopilotPanel";
 import { useCases } from "./CasesProvider";
-import { BUTTON } from "./ui";
+import { BUTTON, OPEN_SIMULATOR_EVENT } from "./ui";
 
 const TABS = [
   { href: "/", label: "Disputes" },
@@ -62,13 +62,13 @@ export default function TopBar() {
                   aria-pressed={data.mode === m}
                   className={`rounded px-2.5 py-1 ${data.mode === m ? "bg-accent text-panel" : "text-muted hover:text-ink"}`}
                 >
-                  {m === "mock" ? "Simulator" : "Live PayPal sandbox"}
+                  {m === "mock" ? "Simulator" : <><span className="hidden sm:inline">Live PayPal </span><span className="sm:hidden">Live </span>sandbox</>}
                 </button>
               ))}
             </div>
           ) : null}
           {data?.mode === "mock" ? <SimulatorMenu onDone={reload} onError={setError} /> : null}
-          <button onClick={() => setSettings(true)} className={BUTTON.secondary}>Autopilot rules</button>
+          <button onClick={() => setSettings(true)} className={BUTTON.secondary} aria-label="Autopilot rules"><span className="sm:hidden">Rules</span><span className="hidden sm:inline">Autopilot rules</span></button>
         </div>
       </div>
       {data?.mode === "sandbox" && data.viewOnly ? (
@@ -95,6 +95,15 @@ function SimulatorMenu({ onDone, onError }: { onDone: () => void; onError: (e: s
   const [armed, setArmed] = useState<Fault | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Empty states elsewhere can open this menu.
+  useEffect(() => {
+    const show = () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_SIMULATOR_EVENT, show);
+    return () => window.removeEventListener(OPEN_SIMULATOR_EVENT, show);
+  }, []);
   useEffect(() => {
     if (!open) return;
     fetch("/api/incidents", { cache: "no-store" }).then((r) => r.json()).then((j) => setArmed(j.armed)).catch(() => {});
@@ -117,10 +126,10 @@ function SimulatorMenu({ onDone, onError }: { onDone: () => void; onError: (e: s
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className={BUTTON.primary}>
-        {busy ? "Working..." : "Simulator tools"}
+        {busy ? "Working..." : <><span className="sm:hidden">Tools</span><span className="hidden sm:inline">Simulator tools</span></>}
       </button>
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-80 space-y-3 rounded-lg border border-line bg-panel p-3 shadow-lg">
+        <div className="absolute right-0 z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] space-y-3 rounded-lg border border-line bg-panel p-3 shadow-lg">
           <div>
             <button
               onClick={() => run(() => fetch("/api/demo/dispute", { method: "POST" })).then(() => setOpen(false))}

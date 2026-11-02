@@ -33,9 +33,25 @@ export function Card({ title, subtitle, right, children }: { title: string; subt
   );
 }
 
-export function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-md border border-dashed border-line px-3 py-4 text-center text-sm text-muted">{children}</p>;
+// Opens the Simulator tools menu in the top bar (see TopBar), so empty states can point to it.
+export const OPEN_SIMULATOR_EVENT = "rebuttal:simulator";
+
+export function Empty({ children, title, action }: { children: React.ReactNode; title?: string; action?: { label: string; onClick: () => void } }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-line px-4 py-5 text-center">
+      <span aria-hidden className="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-sm text-accent">✓</span>
+      {title ? <p className="text-sm font-medium">{title}</p> : null}
+      <p className="max-w-prose text-sm text-muted">{children}</p>
+      {action ? (
+        <button onClick={action.onClick} className={`${BUTTON.secondary} mt-1`}>
+          {action.label}
+        </button>
+      ) : null}
+    </div>
+  );
 }
+
+export const openSimulator = () => window.dispatchEvent(new Event(OPEN_SIMULATOR_EVENT));
 
 export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: Tone }) {
   return (

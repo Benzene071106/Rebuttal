@@ -69,7 +69,7 @@ export default function Protect() {
         <ShieldPanel key={data.cases.length ? "on" : "reset"} viewOnly={Boolean(data.viewOnly)} />
       ) : (
         <Card title="Dispute shield" subtitle="Checks paid orders for dispute risk before you ship.">
-          <Empty>The shield runs on the Simulator&apos;s paid orders. A live install would check each order as PayPal&apos;s PAYMENT.CAPTURE.COMPLETED webhook arrives.</Empty>
+          <Empty title="No paid orders to check here">The shield runs on the Simulator&apos;s paid orders. A live install would check each order as PayPal&apos;s PAYMENT.CAPTURE.COMPLETED webhook arrives.</Empty>
         </Card>
       )}
 
@@ -89,7 +89,7 @@ export default function Protect() {
             suppressCellFocus
           />
         ) : (
-          <Empty>No disputes yet, so no buyers to remember.</Empty>
+          <Empty title="No buyers to remember yet">Every buyer who disputes with you will be listed here, so the shield and the investigator can read their history.</Empty>
         )}
       </Card>
     </div>

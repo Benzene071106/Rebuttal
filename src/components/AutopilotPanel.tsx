@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ActivityItem, AutopilotRules, CaseRecord } from "@/lib/types";
 import { useCases } from "./CasesProvider";
 import { gridTheme } from "./grid";
-import { BUTTON, Empty } from "./ui";
+import { BUTTON, Empty, openSimulator } from "./ui";
 
 const TONE: Record<ActivityItem["tone"], string> = { info: "var(--accent)", good: "var(--fight)", warn: "var(--danger)", bad: "var(--refund)" };
 
@@ -190,10 +190,10 @@ export function AlertsFeed({ cases, mode, limit = 6 }: { cases: CaseRecord[]; mo
     .slice(0, limit);
   if (!feed.length) {
     return (
-      <Empty>
+      <Empty title="No alerts yet" action={mode === "mock" ? { label: "Open Simulator tools", onClick: openSimulator } : undefined}>
         {mode === "sandbox"
-          ? "No alerts yet. New disputes filed by sandbox buyers arrive here through PayPal's webhook."
-          : "No alerts yet. Open Simulator tools and simulate a new dispute to watch autopilot handle it."}
+          ? "New disputes filed by sandbox buyers arrive here through PayPal's webhook, with what autopilot did about them."
+          : "Simulate a new dispute and watch PayPal's webhook arrive and autopilot handle it here."}
       </Empty>
     );
   }

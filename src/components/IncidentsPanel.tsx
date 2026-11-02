@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Incident } from "@/lib/types";
 import { DECISION_LABEL, money } from "./format";
 import { gridTheme } from "./grid";
-import { Empty } from "./ui";
+import { Empty, openSimulator } from "./ui";
 
 type Row = Incident & { detail?: true };
 
@@ -120,9 +120,9 @@ export default function IncidentsPanel({ mode, refreshKey }: { mode?: "mock" | "
 
       {incidents.length ? null : (
         <div className="mt-3">
-          <Empty>
-            No PayPal incidents yet.
-            {mode === "mock" ? " To test it, open Simulator tools, choose a fault and click Break PayPal's next call." : ""}
+          <Empty title="No PayPal failures so far" action={mode === "mock" ? { label: "Break PayPal on purpose", onClick: openSimulator } : undefined}>
+            When a PayPal call fails, each attempt and the agent&apos;s diagnosis land here.
+            {mode === "mock" ? " In Simulator tools, choose a fault and click Break PayPal's next call, then approve a response." : ""}
           </Empty>
         </div>
       )}
