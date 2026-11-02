@@ -12,7 +12,7 @@ import WelcomeTour from "./WelcomeTour";
 import Link from "next/link";
 import { chunk, daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
 import { gridTheme } from "./grid";
-import { Badge, BUTTON, Card, Kpi } from "./ui";
+import { Badge, BUTTON, Card, Empty, Kpi } from "./ui";
 
 
 // The pinned bottom row carries totals for whatever rows the search and filters leave visible.
@@ -294,7 +294,7 @@ function BulkBar({ selected, rules, viewOnly, onDone, clear }: { selected: CaseR
 
 export default function Inbox() {
   const router = useRouter();
-  const { data, error, rules, reload } = useCases();
+  const { data, error, rules, reload, switchMode } = useCases();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // Read the ticked disputes from the latest data, so the bar follows autopilot and PayPal.
   const selected = useMemo(() => (data?.cases ?? []).filter((c) => selectedIds.includes(c.id) && !c.submitted && !c.outcome), [data, selectedIds]);
@@ -487,9 +487,19 @@ export default function Inbox() {
       {data ? (
         <p className="text-xs text-muted">
           {data.mode === "mock"
-            ? "Simulator: your own private copy of the demo with simulated PayPal. AI investigations are real Gemini runs, replayed to stay within the free tier."
-            : `Live PayPal sandbox: real sandbox disputes through the PayPal Agent Toolkit.${data.viewOnly ? " View-only on the hosted demo." : ""}`}
+            ? "Simulator: your own private copy of the shop. It answers like PayPal's Disputes, Orders and Tracking APIs, with the same dispute states and payloads. AI investigations are real Gemini runs, replayed to stay within the free tier."
+            : `Live PayPal sandbox: real disputes from api-m.sandbox.paypal.com, read and answered through the PayPal Agent Toolkit and Disputes API.${data.viewOnly ? " View-only on the hosted demo." : ""}`}
         </p>
+      ) : null}
+      {data?.mode === "sandbox" && data.stats && data.stats.open === 0 ? (
+        <Empty
+          title={data.cases.length ? "No open disputes in the PayPal sandbox right now" : "The PayPal sandbox has no disputes yet"}
+          action={{ label: "Try the full flow in the Simulator", onClick: () => switchMode("mock") }}
+        >
+          {data.cases.length ? "The rows below are real sandbox disputes that PayPal has already closed. " : ""}
+          A new one appears here when a sandbox buyer files a dispute: PayPal sends the webhook, the agent investigates it and autopilot acts within your rules.
+          Sandbox disputes can take a few minutes to show up.
+        </Empty>
       ) : null}
       {error ? <p className="rounded-md border border-danger px-3 py-2 text-sm text-danger">{error}</p> : null}
 
@@ -585,7 +595,7 @@ export default function Inbox() {
           defaultColDef={{ cellStyle: { display: "flex", alignItems: "center" } }}
           onRowDataUpdated={(e) => refreshTotals(e.api)}
           onFilterChanged={(e) => refreshTotals(e.api)}
-          overlayNoRowsTemplate="No disputes yet. Open Simulator tools to file a test dispute."
+          overlayNoRowsTemplate={data?.mode === "sandbox" ? "No disputes in the PayPal sandbox yet." : "No disputes yet. Open Simulator tools to file a test dispute."}
           suppressCellFocus
         />
       </div>

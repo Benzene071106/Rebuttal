@@ -96,13 +96,26 @@ export type CaseStatus =
   | "REFUNDED"
   | "ERROR";
 
+// What PayPal answered when Rebuttal sent the seller's response: the proof it landed.
+export type PayPalReceipt = {
+  method: "POST";
+  endpoint: string; // e.g. /v1/customer/disputes/PP-D-123/provide-evidence
+  via: "rest" | "agent_toolkit" | "simulator";
+  http_status?: number;
+  debug_id?: string; // PayPal-Debug-Id response header, quotable to PayPal support
+  // The dispute as PayPal reported it right after the call.
+  status_after?: string;
+  stage_after?: string;
+  at: string;
+};
+
 export type CaseRecord = {
   id: string; // = dispute_id
   dispute: Dispute;
   status: CaseStatus;
   recommendation?: Recommendation;
   trace: TraceStep[];
-  submitted?: { decision: Decision; at: string; response: string; offer_amount?: number; by?: "seller" | "autopilot" };
+  submitted?: { decision: Decision; at: string; response: string; offer_amount?: number; by?: "seller" | "autopilot"; receipt?: PayPalReceipt };
   outcome?: { result: "WON" | "LOST" | "SETTLED" | "REFUNDED"; amount_kept: number; amount_lost: number; at: string };
   error?: string;
   // Shown above the recommendation when it came from a saved run because the AI was unavailable.

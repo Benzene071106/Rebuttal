@@ -96,6 +96,7 @@ Why both: buyer disputes can only be filed by hand in the sandbox and take minut
 | Disputes API: `send-message` | The negotiator's messages to the buyer in the dispute conversation. |
 | Agent Toolkit: `get_order` (shield) | The dispute shield reads each paid order (shipping address and name, payer account status, shipping option) before the seller ships. |
 | Disputes API (sandbox): `adjudicate` | Simulates PayPal's ruling, so the full lifecycle runs end-to-end in a demo. |
+| Proof each write landed | After every evidence, offer or refund call, the case page shows PayPal's answer: the endpoint, HTTP status, `PayPal-Debug-Id` and the dispute's status right after, with a link to the sandbox Resolution Center. |
 | Webhooks: `CUSTOMER.DISPUTE.*` + `verify-webhook-signature` | Starts autopilot: a new dispute is investigated in the background and the seller's rules applied, so PayPal either already has an answer or an approval is waiting. The simulator sends the same event through the same code. |
 
 ## How it uses AI
@@ -115,15 +116,28 @@ Finished investigations are saved (`cache/investigations/`) and replayed step by
 
 ## Run it locally
 
-Requires Node 22+.
+Requires Node 22+ and npm. No PayPal account is needed for the simulator.
 
 ```bash
+git clone https://github.com/KRISH-SINGH-10/Rebuttal.git
+cd Rebuttal
 npm install
-cp .env.example .env.local   # add GEMINI_API_KEY
+cp .env.example .env.local   # add GEMINI_API_KEY (free at aistudio.google.com)
 npm run dev                  # http://localhost:3000
 ```
 
-With no PayPal credentials, the app runs against a built-in **PayPal simulator** ([`src/lib/paypal/mock.ts`](src/lib/paypal/mock.ts)). It returns the same JSON shapes as the sandbox and comes with four realistic disputes for a demo pottery-and-leather shop. Click **Simulate a new dispute** to watch autopilot handle a new case.
+Production build: `npm run build && npm start` (binds to `$PORT`, default 3000). Health check: `GET /api/health`.
+
+| Variable | Needed for | Where to get it |
+|---|---|---|
+| `GEMINI_API_KEY` | Live AI investigations (without it, saved investigations still replay) | aistudio.google.com, free tier |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | The **Live PayPal sandbox** toggle | developer.paypal.com, Apps & Credentials, Sandbox |
+| `PAYPAL_WEBHOOK_ID` | Receiving real dispute webhooks (autopilot on live disputes) | `npm run webhook:sandbox -- setup https://<host>` prints it |
+| `PAYPAL_MODE` | `mock` forces the simulator | |
+| `LIVE_SANDBOX_WRITABLE` | `1` allows approvals on the live sandbox in production (view-only by default) | |
+| `AG_GRID_LICENSE_KEY` | Optional AG Grid Enterprise features on Insights | ag-grid.com |
+
+With no PayPal credentials, the app runs against a built-in **PayPal simulator** ([`src/lib/paypal/mock.ts`](src/lib/paypal/mock.ts)). It returns the same JSON shapes as the sandbox and comes with three open disputes and 50 closed past ones for a demo pottery-and-leather shop. Click **Simulate a new dispute** to watch autopilot handle a new case.
 
 To use the real PayPal sandbox, set `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from a sandbox app at developer.paypal.com (Apps & Credentials, Sandbox). `npm run check:live` confirms the Gemini key and the sandbox credentials work, without printing either.
 
@@ -157,7 +171,7 @@ A real end-to-end run for a demo:
 ## Tests
 
 ```bash
-npm test   # 60 tests, about 15 seconds, no API keys needed
+npm test   # 62 tests, about 15 seconds, no API keys needed
 ```
 
 The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the fixed rule score (the same order always gets the same level, whatever the model says) and the rule-based fallback when the model fails. The network tests cover the salted buyer hash, which buyers get flagged, the shield's network signal and what this shop shares. The bulk-approve tests cover the server-side cap and guardrails and a PayPal failure on one row. The Gemini tests cover moving to the fallback model on 429, 503 and timeouts, temperature 0, and the saved analysis with its notice when every model fails. The health test checks `/api/health` answers without calling PayPal or Gemini.

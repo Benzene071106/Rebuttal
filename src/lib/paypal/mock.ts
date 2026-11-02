@@ -5,7 +5,7 @@
 import crypto from "node:crypto";
 import { PENDING_ORDERS, type PendingOrder } from "../demo/orders";
 import { personaFor, SCENARIOS, SHOP, type Scenario } from "../demo/scenarios";
-import type { Dispute } from "../types";
+import type { Dispute, PayPalReceipt } from "../types";
 import type { EvidenceSubmission, PayPalGateway } from "./gateway";
 import { sharedToolDefs } from "./toolkit";
 import { lruGet, visitor } from "../visitor";
@@ -257,6 +257,12 @@ export function resetMock() {
   g.__rebuttalMock?.delete(visitor().id);
 }
 
+// The same shape the live sandbox returns, so the "PayPal accepted it" panel reads the
+// same in both modes; marked as simulated in the UI.
+function simReceipt(id: string, action: string): PayPalReceipt {
+  return { method: "POST", endpoint: `/v1/customer/disputes/${id}/${action}`, via: "simulator", http_status: 200, at: new Date().toISOString() };
+}
+
 export const mockGateway: PayPalGateway = {
   mode: "mock",
 
@@ -347,6 +353,7 @@ export const mockGateway: PayPalGateway = {
       status: "UNDER_REVIEW",
       messages: [...(r.dispute.messages ?? []), { posted_by: "SELLER", time_posted: new Date().toISOString(), content: ev.notes }],
     });
+    return simReceipt(id, "provide-evidence");
   },
 
   async makeOffer(id, offer) {
@@ -359,6 +366,7 @@ export const mockGateway: PayPalGateway = {
       messages: [...(r.dispute.messages ?? []), { posted_by: "SELLER", time_posted: new Date().toISOString(), content: offer.note }],
     });
     if (offer.negotiating) scheduleBuyerReply(r);
+    return simReceipt(id, "make-offer");
   },
 
   async sendMessage(id, message) {
@@ -372,6 +380,7 @@ export const mockGateway: PayPalGateway = {
     const r = row(id);
     r.submissions.push({ kind: "accept", note });
     touch(r, { status: "RESOLVED", dispute_outcome: { outcome_code: "RESOLVED_BUYER_FAVOUR", amount_refunded: r.dispute.dispute_amount } });
+    return simReceipt(id, "accept-claim");
   },
 
   async addTracking(transactionId, t) {

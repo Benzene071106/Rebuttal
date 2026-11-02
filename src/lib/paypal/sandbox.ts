@@ -6,7 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import type { Dispute } from "../types";
+import type { Dispute, PayPalReceipt } from "../types";
 import { cachedDisputeList, type ListItem } from "./dispute-list-cache";
 import type { EvidenceSubmission, PayPalGateway } from "./gateway";
 import { evidencePdf } from "./evidence-pdf";
@@ -19,6 +19,12 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
   const defs = toolkitDefs(tk);
 
   async function call(method: string, urlPath: string, body?: unknown | FormData) {
+    return (await callWithReceipt(method, urlPath, body)).json;
+  }
+
+  // Same call, plus what PayPal answered (status and PayPal-Debug-Id), kept as the
+  // seller's proof that a write landed.
+  async function callWithReceipt(method: string, urlPath: string, body?: unknown | FormData): Promise<{ json: any; receipt: PayPalReceipt }> {
     const headers = await tk.client.getHeaders();
     const isForm = body instanceof FormData;
     if (isForm) delete headers["Content-Type"];
@@ -29,7 +35,8 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`PayPal ${method} ${urlPath} failed (${res.status}): ${text.slice(0, 500)}`);
-    return text ? JSON.parse(text) : {};
+    const receipt: PayPalReceipt = { method: "POST", endpoint: urlPath, via: "rest", http_status: res.status, debug_id: res.headers.get("paypal-debug-id") ?? undefined, at: new Date().toISOString() };
+    return { json: text ? JSON.parse(text) : {}, receipt };
   }
 
   // Runs one Agent Toolkit tool. The toolkit reports PayPal errors as an `error` object
@@ -103,8 +110,7 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
         const t = ev.tracking ? `\n\nTracking: ${ev.tracking.carrier} ${ev.tracking.tracking_number}` : "";
         const form = new FormData();
         form.append("input", new Blob([JSON.stringify({ notes: `${ev.notes}${t}`.slice(0, 2000) })], { type: "application/json" }));
-        await call("POST", `/v1/customer/disputes/${id}/provide-supporting-info`, form);
-        return;
+        return (await callWithReceipt("POST", `/v1/customer/disputes/${id}/provide-supporting-info`, form)).receipt;
       }
       if (!rels.has("provide_evidence")) {
         throw new Error(`PayPal isn't accepting evidence on this dispute right now (status ${d.status}; allowed: ${[...rels].filter((r) => r !== "self").join(", ") || "none"}).`);
@@ -142,8 +148,7 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
         form.append("input", new Blob([JSON.stringify({ evidences: [evidence] })], { type: "application/json" }));
         form.append("file1", evidencePdf(`Seller response to PayPal dispute ${id}`, notes), "seller-response.pdf");
         try {
-          await call("POST", `/v1/customer/disputes/${id}/provide-evidence`, form);
-          return;
+          return (await callWithReceipt("POST", `/v1/customer/disputes/${id}/provide-evidence`, form)).receipt;
         } catch (e) {
           lastError = e;
           if (!/EVIDENCE_TYPE_IS_NOT_ALLOWED/.test(e instanceof Error ? e.message : "")) throw e;
@@ -154,11 +159,11 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
 
     async makeOffer(id, offer) {
       await requireAction(id, "make_offer", "PayPal doesn't take offers on this dispute right now. Offers are only possible before a dispute becomes a chargeback or claim under PayPal review.");
-      await call("POST", `/v1/customer/disputes/${id}/make-offer`, {
+      return (await callWithReceipt("POST", `/v1/customer/disputes/${id}/make-offer`, {
         note: offer.note,
         offer_amount: { currency_code: offer.currency, value: offer.amount },
         offer_type: offer.type,
-      });
+      })).receipt;
     },
 
     async sendMessage(id, message) {
@@ -170,12 +175,13 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
       await requireAction(id, "accept_claim", "PayPal isn't letting the seller accept this claim right now (it is under PayPal review). Try again once PayPal asks the seller to respond.");
       try {
         await toolkit("accept_dispute_claim", { dispute_id: id, note });
+        return { method: "POST", endpoint: `/v1/customer/disputes/${id}/accept-claim`, via: "agent_toolkit", at: new Date().toISOString() };
       } catch (e) {
         // The toolkit's tool also sends its arguments as query parameters; if PayPal
         // rejects that, make the same call directly.
         console.warn("accept_dispute_claim via Agent Toolkit failed, retrying over REST:", e instanceof Error ? e.message : e);
         try {
-          await call("POST", `/v1/customer/disputes/${id}/accept-claim`, { note, accept_claim_type: "REFUND" });
+          return (await callWithReceipt("POST", `/v1/customer/disputes/${id}/accept-claim`, { note, accept_claim_type: "REFUND" })).receipt;
         } catch (rest) {
           if (/INSUFFICIENT_FUNDS/.test(rest instanceof Error ? rest.message : "")) {
             // Keep PayPal's own error (name, debug_id) so the recovery agent can read it.

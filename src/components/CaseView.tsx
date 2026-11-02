@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CaseRecord, Decision, NegotiationTurn, TraceStep } from "@/lib/types";
+import type { CaseRecord, Decision, NegotiationTurn, PayPalReceipt, TraceStep } from "@/lib/types";
 import EvidenceGrid from "./EvidenceGrid";
 import NegotiationPanel from "./NegotiationPanel";
 import NetworkBanner from "./NetworkBanner";
@@ -414,6 +414,7 @@ export default function CaseView({ id }: { id: string }) {
                 {c.submitted.offer_amount ? ` of ${money(c.submitted.offer_amount)}` : ""} &middot; {c.submitted.by === "autopilot" ? "sent by autopilot" : "approved by you"} &middot; {new Date(c.submitted.at).toLocaleString()}
               </p>
               <p className="whitespace-pre-wrap rounded-md bg-bg p-3 text-sm text-muted">{c.submitted.response}</p>
+              {c.submitted.receipt ? <PayPalReceiptCard id={c.id} r={c.submitted.receipt} /> : null}
               {!c.outcome && !viewOnly ? (
                 <div className="space-y-2 rounded-md border border-accent bg-accent-soft p-3">
                   <p className="text-sm font-medium">
@@ -470,5 +471,49 @@ function Panel({ title, action, children }: { title: string; action?: React.Reac
       </div>
       {children}
     </section>
+  );
+}
+
+const MONO = new Set(["Call", "PayPal-Debug-Id", "Dispute ID"]);
+
+// Proof the response landed: what PayPal answered to the write call.
+function PayPalReceiptCard({ id, r }: { id: string; r: PayPalReceipt }) {
+  const sim = r.via === "simulator";
+  const rows: Array<[string, string | undefined]> = [
+    ["Call", `${r.method} ${r.endpoint}`],
+    ["Sent through", r.via === "agent_toolkit" ? "PayPal Agent Toolkit (accept_dispute_claim)" : r.via === "rest" ? "PayPal Disputes REST API" : "Simulator (same endpoint and payload as the live sandbox)"],
+    ["PayPal answered", r.http_status ? `HTTP ${r.http_status} ${r.http_status < 300 ? "accepted" : ""}`.trim() : "Accepted (no error from PayPal)"],
+    ["PayPal-Debug-Id", r.debug_id],
+    ["Dispute after the call", r.status_after ? `${r.status_after.replaceAll("_", " ").toLowerCase()}${r.stage_after ? `, ${r.stage_after.replaceAll("_", " ").toLowerCase()} stage` : ""}` : undefined],
+    ["Dispute ID", id],
+    ["At", new Date(r.at).toLocaleString()],
+  ];
+  return (
+    <div className="rounded-md border p-3 text-sm" style={{ borderColor: sim ? "var(--line)" : "var(--accent)" }} data-testid="paypal-receipt">
+      <p className="mb-2 flex flex-wrap items-center gap-2 font-medium">
+        <span aria-hidden style={{ color: "var(--fight)" }}>✓</span>
+        {sim ? "Simulated PayPal response" : "PayPal accepted it"}
+        <span className="rounded px-1.5 py-0.5 text-xs" style={{ background: sim ? "var(--bg)" : "var(--accent-soft)", color: sim ? "var(--muted)" : "var(--accent)" }}>
+          {sim ? "Simulator" : "Live PayPal sandbox"}
+        </span>
+      </p>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[11rem_1fr]">
+        {rows.filter(([, v]) => v).map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted">{k}</dt>
+            <dd className={MONO.has(k) ? "break-all font-mono text-xs leading-5" : ""}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {sim ? (
+        <p className="mt-2 text-xs text-muted">Switch to Live PayPal sandbox to see the real response from api-m.sandbox.paypal.com.</p>
+      ) : (
+        <p className="mt-2 text-xs text-muted">
+          Check it on PayPal&apos;s side:{" "}
+          <a href="https://www.sandbox.paypal.com/resolutioncenter" target="_blank" rel="noreferrer" className="text-accent underline">sandbox Resolution Center</a>{" "}
+          (sign in as the sandbox seller, open dispute {id}).
+        </p>
+      )}
+    </div>
   );
 }

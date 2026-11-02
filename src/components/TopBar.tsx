@@ -60,7 +60,7 @@ export default function TopBar() {
                   key={m}
                   onClick={() => switchMode(m)}
                   aria-pressed={data.mode === m}
-                  className={`rounded px-2.5 py-1 ${data.mode === m ? "bg-accent text-panel" : "text-muted hover:text-ink"}`}
+                  className={`rounded px-2.5 py-1 ${data.mode === m ? "bg-accent text-panel" : m === "sandbox" ? "font-medium text-accent hover:bg-accent-soft" : "text-muted hover:text-ink"}`}
                 >
                   {m === "mock" ? "Simulator" : <><span className="hidden sm:inline">Live PayPal </span><span className="sm:hidden">Live </span>sandbox</>}
                 </button>
@@ -71,6 +71,17 @@ export default function TopBar() {
           <button onClick={() => setSettings(true)} className={BUTTON.secondary} aria-label="Autopilot rules"><span className="sm:hidden">Rules</span><span className="hidden sm:inline">Autopilot rules</span></button>
         </div>
       </div>
+      {data?.mode === "mock" && data.sandboxAvailable ? (
+        <div role="note" className="border-t border-line bg-accent-soft">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+            <span>
+              <strong>Simulator: mirrors the real PayPal Disputes API</strong> (same endpoints, payloads and dispute states), so you can try every action safely.
+              The Gemini investigations are real.
+            </span>
+            <button onClick={() => switchMode("sandbox")} className="font-medium text-accent underline">Switch to Live PayPal sandbox to see real API calls</button>
+          </div>
+        </div>
+      ) : null}
       {data?.mode === "sandbox" && data.viewOnly ? (
         <div role="note" className="border-t border-line" style={{ background: "color-mix(in srgb, var(--offer) 10%, transparent)" }}>
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">

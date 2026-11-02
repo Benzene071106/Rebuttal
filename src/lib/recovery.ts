@@ -53,7 +53,7 @@ export function classify(f: PayPalFailure): Incident["kind"] {
 
 // Runs one PayPal write for a case. Recovers what it can; otherwise records why and
 // throws a plain explanation for the seller.
-export async function withRecovery(c: CaseRecord, action: Decision, amount: number, run: () => Promise<void>, opts: { model?: AgentModel } = {}): Promise<Incident | null> {
+export async function withRecovery(c: CaseRecord, action: Decision, amount: number, run: () => Promise<unknown>, opts: { model?: AgentModel } = {}): Promise<Incident | null> {
   const attempts: Incident["attempts"] = [];
   const at = () => new Date().toISOString();
   let failure: PayPalFailure | null = null;

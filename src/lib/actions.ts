@@ -4,7 +4,7 @@ import { getCase, updateCase } from "./cases";
 import { withCaseLock } from "./locks";
 import { paypal } from "./paypal";
 import { withRecovery } from "./recovery";
-import type { CaseRecord, Decision, Dispute, EvidenceType } from "./types";
+import type { CaseRecord, Decision, Dispute, EvidenceType, PayPalReceipt } from "./types";
 
 export type Approval = {
   decision: Decision;
@@ -31,6 +31,7 @@ async function send(caseId: string, a: Approval): Promise<CaseRecord> {
   const response = a.response.trim().slice(0, 2000);
   if (!response) throw new Error("The response to PayPal is empty.");
   let offerAmount: number | undefined;
+  let receipt: PayPalReceipt | undefined;
 
   if (a.decision === "FIGHT") {
     const types = [...new Set<EvidenceType>(r?.evidence.map((e) => e.type) ?? ["OTHER"])];
@@ -48,23 +49,30 @@ async function send(caseId: string, a: Approval): Promise<CaseRecord> {
         note(caseId, `Could not add tracking to the PayPal transaction: ${e instanceof Error ? e.message : e}`, "error");
       }
     }
-    await withRecovery(c, "FIGHT", Number(c.dispute.dispute_amount.value), () => gw.provideEvidence(caseId, { notes: response, evidence_types: types, tracking }));
+    await withRecovery(c, "FIGHT", Number(c.dispute.dispute_amount.value), async () => {
+      receipt = await gw.provideEvidence(caseId, { notes: response, evidence_types: types, tracking });
+    });
   } else if (a.decision === "OFFER") {
     // Round to cents first: PayPal gets what we validated, and 0.001 can't become "0.00".
     offerAmount = Math.round(Number(a.offer_amount) * 100) / 100;
     const amount = offerAmount;
     const max = Number(c.dispute.dispute_amount.value);
     if (!(amount >= 0.01 && amount < max)) throw new Error(`Offer must be at least $0.01 and below $${max.toFixed(2)}.`);
-    await withRecovery(c, "OFFER", amount, () => gw.makeOffer(caseId, { amount: amount.toFixed(2), currency, type: a.offer_type ?? "REFUND", note: response }));
+    await withRecovery(c, "OFFER", amount, async () => {
+      receipt = await gw.makeOffer(caseId, { amount: amount.toFixed(2), currency, type: a.offer_type ?? "REFUND", note: response });
+    });
   } else {
-    await withRecovery(c, "REFUND", Number(c.dispute.dispute_amount.value), () => gw.acceptClaim(caseId, response));
+    await withRecovery(c, "REFUND", Number(c.dispute.dispute_amount.value), async () => {
+      receipt = await gw.acceptClaim(caseId, response);
+    });
   }
 
   const dispute = await gw.getDispute(caseId);
+  if (receipt) receipt = { ...receipt, status_after: dispute.status, stage_after: dispute.dispute_life_cycle_stage };
   return updateCase(caseId, {
     dispute,
     status: a.decision === "REFUND" ? "REFUNDED" : "SUBMITTED",
-    submitted: { decision: a.decision, at: new Date().toISOString(), response, offer_amount: offerAmount, by: a.by ?? "seller" },
+    submitted: { decision: a.decision, at: new Date().toISOString(), response, offer_amount: offerAmount, by: a.by ?? "seller", receipt },
     outcome: a.decision === "REFUND" ? outcomeFor(dispute, "REFUND") : undefined,
   });
 }

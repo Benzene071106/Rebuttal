@@ -1,4 +1,4 @@
-import type { Dispute } from "../types";
+import type { Dispute, PayPalReceipt } from "../types";
 
 // JSON-schema tool definition, as exposed by the PayPal Agent Toolkit.
 export type ToolDef = { name: string; description: string; input_schema: { type: "object"; [k: string]: unknown }; strict?: boolean };
@@ -25,11 +25,11 @@ export interface PayPalGateway {
   getDispute(id: string): Promise<Dispute>;
 
   // Write side: only ever called after the seller approves.
-  provideEvidence(id: string, ev: EvidenceSubmission): Promise<void>;
+  provideEvidence(id: string, ev: EvidenceSubmission): Promise<PayPalReceipt>;
   // `negotiating` marks an offer made by the negotiator, which expects the buyer to
   // answer in the dispute conversation (the simulator's buyer then haggles).
-  makeOffer(id: string, offer: { amount: string; currency: string; type: "REFUND" | "REFUND_WITH_RETURN"; note: string; negotiating?: boolean }): Promise<void>;
-  acceptClaim(id: string, note: string): Promise<void>;
+  makeOffer(id: string, offer: { amount: string; currency: string; type: "REFUND" | "REFUND_WITH_RETURN"; note: string; negotiating?: boolean }): Promise<PayPalReceipt>;
+  acceptClaim(id: string, note: string): Promise<PayPalReceipt>;
   // Posts a message to the buyer in the dispute conversation.
   sendMessage(id: string, message: string): Promise<void>;
   // Makes sure PayPal has the carrier tracking on the disputed transaction before we
