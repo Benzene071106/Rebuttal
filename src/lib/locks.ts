@@ -3,7 +3,7 @@
 // single approve) can never send PayPal two responses, and a finishing investigation
 // can never overwrite a response that was sent while it ran.
 
-import { visitor } from "./visitor";
+import { tenant } from "./visitor";
 
 export class CaseBusyError extends Error {
   readonly status = 409;
@@ -11,8 +11,8 @@ export class CaseBusyError extends Error {
 
 const held = new Map<string, { what: string; done: Promise<void> }>();
 
-// Simulator dispute IDs repeat across visitors, so the key is per visitor and mode.
-const keyFor = (caseId: string) => `${visitor().mode === "mock" ? visitor().id : "sandbox"}:${caseId}`;
+// Simulator dispute IDs repeat across visitors, so the key is per tenant (visitor, seller or shared sandbox).
+const keyFor = (caseId: string) => `${tenant()}:${caseId}`;
 
 export async function withCaseLock<T>(caseId: string, what: string, fn: () => Promise<T>): Promise<T> {
   const key = keyFor(caseId);

@@ -30,8 +30,8 @@ function scripted(moves: Array<Record<string, unknown>>) {
 
 async function mugCase() {
   await syncCases();
-  const c = listCases().find((x) => x.dispute.disputed_transactions[0].invoice_number === "JK-1057")!;
-  return updateCase(c.id, { status: "READY", recommendation: rec });
+  const c = (await listCases()).find((x) => x.dispute.disputed_transactions[0].invoice_number === "JK-1057")!;
+  return await updateCase(c.id, { status: "READY", recommendation: rec });
 }
 
 describe("negotiation guardrails", () => {
@@ -46,9 +46,9 @@ describe("negotiation guardrails", () => {
 });
 
 describe("negotiate", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
+    await resetCases();
   });
 
   it("haggles with the buyer through PayPal offers and settles inside the ceiling", async () => {
@@ -93,10 +93,10 @@ describe("negotiate", () => {
 });
 
 describe("negotiate during a PayPal outage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
-    resetIncidents();
+    await resetCases();
+    await resetIncidents();
   });
 
   it("retries the offer through the self-healing layer instead of handing back", async () => {
@@ -105,7 +105,7 @@ describe("negotiate during a PayPal outage", () => {
     const broken = { provider: "gemini", model: "x", next: async () => { throw new Error("quota"); } } as any;
     const out = await negotiate(c.id, { maxRefund: 38.4, model: broken });
     expect(out.negotiation?.status).toBe("SETTLED");
-    expect(listIncidents().some((i) => i.result === "HEALED")).toBe(true);
+    expect((await listIncidents()).some((i) => i.result === "HEALED")).toBe(true);
   }, 30_000);
 
   it("can be started again after it was handed back, and the alert has no raw JSON", async () => {

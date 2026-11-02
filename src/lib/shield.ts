@@ -185,7 +185,7 @@ export async function getBuyerHistory(email: string) {
   const key = email.trim().toLowerCase();
   const order = PENDING_ORDERS.find((o) => o.buyer.email === key);
   const disputes = await Promise.all(
-    listCases()
+    (await listCases())
       .filter((c) => c.dispute.disputed_transactions[0]?.buyer?.email?.toLowerCase() === key)
       .map(async (c) => {
         const t = c.dispute.disputed_transactions[0];
@@ -206,7 +206,7 @@ export async function getBuyerHistory(email: string) {
         };
       }),
   );
-  const net = networkFor(key);
+  const net = await networkFor(key);
   return {
     email: key,
     completed_orders: order?.prior_purchases ?? 0,

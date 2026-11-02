@@ -8,24 +8,24 @@ import { getBuyerHistory, scoreOrder } from "../src/lib/shield";
 process.env.PAYPAL_MODE = "mock";
 
 describe("Rebuttal network", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
+    await resetCases();
   });
 
-  it("matches buyers by a salted hash, case-insensitively, and never stores the email", () => {
+  it("matches buyers by a salted hash, case-insensitively, and never stores the email", async () => {
     expect(buyerHash("Dana.W@example.com ")).toBe(buyerHash("dana.w@example.com"));
     expect(buyerHash("dana.w@example.com")).toMatch(/^[0-9a-f]{16}$/);
-    const { accounts } = listNetwork([]);
+    const { accounts } = await listNetwork([]);
     expect(JSON.stringify(accounts)).not.toContain("@");
   });
 
   it("warns about the forwarder buyer and Dana, and not about a clean repeat buyer", async () => {
     await syncCases();
-    expect(networkFor("t.reyes.shop@example.com").other_shops).toBe(2);
-    expect(networkFor("dana.w@example.com").other_shops).toBe(1);
-    expect(networkFor("hannah.cole@example.com").other_shops).toBe(0);
-    expect(networkFor(null).other_shops).toBe(0);
+    expect((await networkFor("t.reyes.shop@example.com")).other_shops).toBe(2);
+    expect((await networkFor("dana.w@example.com")).other_shops).toBe(1);
+    expect((await networkFor("hannah.cole@example.com")).other_shops).toBe(0);
+    expect((await networkFor(null)).other_shops).toBe(0);
   });
 
   it("raises the shield score with a sourced network signal", async () => {
@@ -48,7 +48,7 @@ describe("Rebuttal network", () => {
     expect(reportFromCase({ ...won, outcome: undefined, recommendation: signed })).toBeNull();
     const r = reportFromCase({ ...won, dispute: { ...c.dispute, reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED" }, recommendation: signed });
     expect(r).toMatchObject({ shop: "Juniper & Kiln", simulated_shop: false, outcome: "WON" });
-    updateCase(c.id, { outcome: won.outcome, recommendation: signed, dispute: { ...c.dispute, reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED" } });
-    expect(listNetwork([]).shared).toBe(1);
+    await updateCase(c.id, { outcome: won.outcome, recommendation: signed, dispute: { ...c.dispute, reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED" } });
+    expect((await listNetwork([])).shared).toBe(1);
   });
 });

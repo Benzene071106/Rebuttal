@@ -8,16 +8,16 @@ import { resetRules } from "../src/lib/rules";
 process.env.PAYPAL_MODE = "mock";
 
 describe("proof that PayPal accepted the response", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
-    resetRules();
-    resetIncidents();
+    await resetCases();
+    await resetRules();
+    await resetIncidents();
   });
 
   it("records the endpoint, PayPal's answer and the dispute status after the call", async () => {
     const [c] = await syncCases();
-    updateCase(c.id, { status: "READY" });
+    await updateCase(c.id, { status: "READY" });
     const sent = await approve(c.id, { decision: "FIGHT", response: "Tracking shows delivery." });
     const r = sent.submitted?.receipt;
     expect(r?.endpoint).toBe(`/v1/customer/disputes/${c.id}/provide-evidence`);
@@ -28,7 +28,7 @@ describe("proof that PayPal accepted the response", () => {
 
   it("records the accept-claim call for a refund", async () => {
     const [c] = await syncCases();
-    updateCase(c.id, { status: "READY" });
+    await updateCase(c.id, { status: "READY" });
     const sent = await approve(c.id, { decision: "REFUND", response: "Refunding." });
     expect(sent.submitted?.receipt?.endpoint).toMatch(/accept-claim$/);
     expect(sent.submitted?.receipt?.status_after).toBe("RESOLVED");

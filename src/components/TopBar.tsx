@@ -62,13 +62,18 @@ export default function TopBar() {
                   aria-pressed={data.mode === m}
                   className={`rounded px-2.5 py-1 ${data.mode === m ? "bg-accent text-panel" : m === "sandbox" ? "font-medium text-accent hover:bg-accent-soft" : "text-muted hover:text-ink"}`}
                 >
-                  {m === "mock" ? "Simulator" : <><span className="hidden sm:inline">Live PayPal </span><span className="sm:hidden">Live </span>sandbox</>}
+                  {m === "mock" ? "Simulator" : data.account ? `My PayPal${data.account.paypal_env === "sandbox" ? " (sandbox)" : ""}` : <><span className="hidden sm:inline">Live PayPal </span><span className="sm:hidden">Live </span>sandbox</>}
                 </button>
               ))}
             </div>
           ) : null}
           {data?.mode === "mock" ? <SimulatorMenu onDone={reload} onError={setError} /> : null}
           <button onClick={() => setSettings(true)} className={BUTTON.secondary} aria-label="Autopilot rules"><span className="sm:hidden">Rules</span><span className="hidden sm:inline">Autopilot rules</span></button>
+          {data?.accounts ? (
+            <Link href="/account" aria-current={path === "/account" ? "page" : undefined} className={BUTTON.secondary} title={data.account?.email}>
+              {data.account ? "Account" : "Sign in"}
+            </Link>
+          ) : null}
         </div>
       </div>
       {data?.mode === "mock" && data.sandboxAvailable ? (

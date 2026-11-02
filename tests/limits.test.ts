@@ -9,10 +9,10 @@ import { DEFAULT_RULES, RulesSchema } from "../src/lib/rules";
 process.env.PAYPAL_MODE = "mock";
 
 describe("stress-test limits", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
-    resetIncidents();
+    await resetCases();
+    await resetIncidents();
   });
 
   it("caps how many open disputes one visitor can simulate", async () => {
@@ -32,7 +32,7 @@ describe("stress-test limits", () => {
 
   it("uses up an armed 'insufficient funds' fault on the next write, even when it isn't a refund", async () => {
     const [a] = await syncCases();
-    updateCase(a.id, { status: "READY" });
+    await updateCase(a.id, { status: "READY" });
     armFault("INSUFFICIENT_FUNDS");
     await approve(a.id, { decision: "FIGHT", response: "Evidence attached." });
     expect(armedFault()).toBeNull();

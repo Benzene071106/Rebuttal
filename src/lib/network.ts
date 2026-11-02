@@ -67,7 +67,7 @@ export function reportFromCase(c: CaseRecord): NetworkReport | null {
   return { buyer_hash: buyerHash(email), shop: SHOP_NAME, simulated_shop: false, reason: c.dispute.reason, evidence: ev.summary, outcome: "WON", at: c.outcome.at };
 }
 
-export function allReports(now = Date.now()): NetworkReport[] {
+export async function allReports(now = Date.now()): Promise<NetworkReport[]> {
   const others = OTHER_SHOPS.map((r) => ({
     buyer_hash: buyerHash(r.email),
     shop: r.shop,
@@ -77,14 +77,14 @@ export function allReports(now = Date.now()): NetworkReport[] {
     outcome: r.outcome,
     at: new Date(now - r.days_ago * DAY).toISOString(),
   }));
-  const own = listCases().map(reportFromCase).filter((r): r is NetworkReport => Boolean(r));
+  const own = (await listCases()).map(reportFromCase).filter((r): r is NetworkReport => Boolean(r));
   return [...others, ...own];
 }
 
 // Reports from other shops about this buyer.
-export function networkFor(email: string | undefined | null): NetworkMatch {
+export async function networkFor(email: string | undefined | null): Promise<NetworkMatch> {
   const hash = buyerHash(email ?? "");
-  const reports = email ? allReports().filter((r) => r.buyer_hash === hash && r.shop !== SHOP_NAME) : [];
+  const reports = email ? (await allReports()).filter((r) => r.buyer_hash === hash && r.shop !== SHOP_NAME) : [];
   return { buyer_hash: hash, other_shops: new Set(reports.map((r) => r.shop)).size, reports };
 }
 
@@ -103,8 +103,8 @@ export type NetworkAccount = {
 
 // Every account reported to the network, with the buyer named only when this shop has
 // its own record of them (a dispute or a paid order).
-export function listNetwork(known: Array<{ email: string; name: string }>): { accounts: NetworkAccount[]; shops: number; reports: number; shared: number } {
-  const reports = allReports();
+export async function listNetwork(known: Array<{ email: string; name: string }>): Promise<{ accounts: NetworkAccount[]; shops: number; reports: number; shared: number }> {
+  const reports = await allReports();
   const names = new Map(known.map((k) => [buyerHash(k.email), k]));
   const by = new Map<string, NetworkReport[]>();
   for (const r of reports) by.set(r.buyer_hash, [...(by.get(r.buyer_hash) ?? []), r]);

@@ -15,7 +15,7 @@ import { paypal } from "./paypal";
 import type { ToolDef } from "./paypal/gateway";
 import { RecoveryPausedError, withRecovery } from "./recovery";
 import type { CaseRecord, Dispute, Negotiation, NegotiationTurn } from "./types";
-import { visitor } from "./visitor";
+import { tenant } from "./visitor";
 
 const MAX_AGENT_MOVES = 4;
 const BUYER_WAIT_MS = 6_000;
@@ -59,7 +59,7 @@ const running = new Set<string>();
 // answered. Returns when the deal settles, is handed back, or the buyer hasn't answered
 // yet (a webhook continues it then).
 export async function negotiate(caseId: string, opts: { maxRefund?: number; onTurn?: (t: NegotiationTurn) => void; model?: AgentModel; waitMs?: number } = {}): Promise<CaseRecord> {
-  let c = getCase(caseId);
+  let c = await getCase(caseId);
   if (!c) throw new Error(`Unknown case ${caseId}`);
   const r = c.recommendation;
   if (!r) throw new Error("Investigate the dispute before negotiating.");
@@ -73,19 +73,19 @@ export async function negotiate(caseId: string, opts: { maxRefund?: number; onTu
     if (c.submitted) throw new Error("A response was already sent for this dispute.");
     const max = round2(Number(opts.maxRefund));
     if (!(max > 0 && max < amount)) throw new Error(`The negotiation ceiling must be between $0 and ${money(amount)}.`);
-    c = updateCase(caseId, { negotiation: { status: "ACTIVE", max_refund: max, turns: [] } });
+    c = await updateCase(caseId, { negotiation: { status: "ACTIVE", max_refund: max, turns: [] } });
   } else if (c.negotiation.status === "SETTLED" || c.negotiation.status === "HANDED_BACK") {
     return c;
   }
 
-  const lock = `${visitor().mode === "mock" ? visitor().id : "sandbox"}:${caseId}`;
+  const lock = `${tenant()}:${caseId}`;
   if (running.has(lock)) throw new Error("The agent is already negotiating this dispute.");
   running.add(lock);
   const gw = paypal();
-  const neg = () => getCase(caseId)!.negotiation!;
-  const save = (patch: Partial<Negotiation>) => updateCase(caseId, { negotiation: { ...neg(), ...patch } });
-  const push = (t: NegotiationTurn) => {
-    save({ turns: [...neg().turns, t] });
+  const neg = async () => (await getCase(caseId))!.negotiation!;
+  const save = async (patch: Partial<Negotiation>) => updateCase(caseId, { negotiation: { ...(await neg()), ...patch } });
+  const push = async (t: NegotiationTurn) => {
+    await save({ turns: [...(await neg()).turns, t] });
     opts.onTurn?.(t);
   };
 
@@ -93,7 +93,7 @@ export async function negotiate(caseId: string, opts: { maxRefund?: number; onTu
     for (;;) {
       let d = await gw.getDispute(caseId);
       // The last move was ours: give the buyer a moment to answer.
-      if (neg().turns.at(-1)?.from === "AGENT") {
+      if ((await neg()).turns.at(-1)?.from === "AGENT") {
         const before = buyerMessages(d).length;
         const until = Date.now() + (opts.waitMs ?? BUYER_WAIT_MS);
         while (buyerMessages(d).length === before && !d.dispute_outcome && d.status !== "UNDER_REVIEW" && Date.now() < until) {
@@ -101,55 +101,55 @@ export async function negotiate(caseId: string, opts: { maxRefund?: number; onTu
           d = await gw.getDispute(caseId);
         }
         const fresh = buyerMessages(d).slice(before);
-        fresh.forEach((m, i) => push({ at: new Date().toISOString(), from: "BUYER", text: m.content, amount: i === fresh.length - 1 && !d.dispute_outcome && d.status !== "UNDER_REVIEW" ? askOf(d) : undefined }));
+        for (const [i, m] of fresh.entries()) await push({ at: new Date().toISOString(), from: "BUYER", text: m.content, amount: i === fresh.length - 1 && !d.dispute_outcome && d.status !== "UNDER_REVIEW" ? askOf(d) : undefined });
         if (!fresh.length && !d.dispute_outcome && d.status !== "UNDER_REVIEW") {
-          save({ status: "WAITING_FOR_BUYER" });
-          return updateCase(caseId, { dispute: d });
+          await save({ status: "WAITING_FOR_BUYER" });
+          return await updateCase(caseId, { dispute: d });
         }
       }
 
       if (d.dispute_outcome) {
         const o = outcomeFor(d, "OFFER");
-        save({ status: "SETTLED" });
-        const agentMoves = neg().turns.filter((t) => t.from === "AGENT").length;
-        addActivity(caseId, `The agent settled with the buyer at ${money(o?.amount_lost ?? 0)} after ${agentMoves} offer${agentMoves === 1 ? "" : "s"}. You keep ${money(o?.amount_kept ?? 0)}.`, "good");
-        return updateCase(caseId, { dispute: d, outcome: o, status: o?.result ?? "SETTLED" });
+        await save({ status: "SETTLED" });
+        const agentMoves = (await neg()).turns.filter((t) => t.from === "AGENT").length;
+        await addActivity(caseId, `The agent settled with the buyer at ${money(o?.amount_lost ?? 0)} after ${agentMoves} offer${agentMoves === 1 ? "" : "s"}. You keep ${money(o?.amount_kept ?? 0)}.`, "good");
+        return await updateCase(caseId, { dispute: d, outcome: o, status: o?.result ?? "SETTLED" });
       }
-      if (d.status === "UNDER_REVIEW") return handBack(caseId, d, "The buyer stopped negotiating and asked PayPal to decide. You can still send evidence.");
-      if (neg().turns.filter((t) => t.from === "AGENT").length >= MAX_AGENT_MOVES) return handBack(caseId, d, `No deal after ${MAX_AGENT_MOVES} offers, so the agent stopped. Decide whether to fight or offer more.`);
+      if (d.status === "UNDER_REVIEW") return await handBack(caseId, d, "The buyer stopped negotiating and asked PayPal to decide. You can still send evidence.");
+      if ((await neg()).turns.filter((t) => t.from === "AGENT").length >= MAX_AGENT_MOVES) return await handBack(caseId, d, `No deal after ${MAX_AGENT_MOVES} offers, so the agent stopped. Decide whether to fight or offer more.`);
 
       const ask = askOf(d) ?? amount;
-      const move = await decideMove(getCase(caseId)!, d, ask, opts.model);
+      const move = await decideMove((await getCase(caseId))!, d, ask, opts.model);
       if (move.action === "STOP") {
-        push({ at: new Date().toISOString(), from: "AGENT", text: "", reasoning: move.reasoning, by: move.by });
-        return handBack(caseId, d, `The agent stopped: ${move.reasoning}`);
+        await push({ at: new Date().toISOString(), from: "AGENT", text: "", reasoning: move.reasoning, by: move.by });
+        return await handBack(caseId, d, `The agent stopped: ${move.reasoning}`);
       }
       const offer = move.action === "ACCEPT" ? ask : move.amount;
       // Same self-healing as a seller's own offer: outages and expired tokens are retried.
-      await withRecovery(getCase(caseId)!, "OFFER", offer, () => gw.makeOffer(caseId, { amount: offer.toFixed(2), currency: d.dispute_amount.currency_code, type: "REFUND", note: move.message, negotiating: true }));
-      push({ at: new Date().toISOString(), from: "AGENT", text: move.message, amount: offer, reasoning: move.reasoning, by: move.by });
-      const first = !getCase(caseId)!.submitted;
-      updateCase(caseId, {
+      await withRecovery((await getCase(caseId))!, "OFFER", offer, () => gw.makeOffer(caseId, { amount: offer.toFixed(2), currency: d.dispute_amount.currency_code, type: "REFUND", note: move.message, negotiating: true }));
+      await push({ at: new Date().toISOString(), from: "AGENT", text: move.message, amount: offer, reasoning: move.reasoning, by: move.by });
+      const first = !(await getCase(caseId))!.submitted;
+      await updateCase(caseId, {
         status: "SUBMITTED",
         submitted: { decision: "OFFER", at: new Date().toISOString(), response: move.message, offer_amount: offer, by: "seller" },
       });
-      if (first) addActivity(caseId, `The agent opened a negotiation with the buyer: offered ${money(offer)}.`);
-      save({ status: "ACTIVE" });
+      if (first) await addActivity(caseId, `The agent opened a negotiation with the buyer: offered ${money(offer)}.`);
+      await save({ status: "ACTIVE" });
     }
   } catch (e) {
-    const d = await gw.getDispute(caseId).catch(() => getCase(caseId)!.dispute);
-    return handBack(caseId, d, e instanceof RecoveryPausedError ? `PayPal refused the offer. ${e.message}` : `PayPal refused the offer: ${plainError(e)}`);
+    const d = await gw.getDispute(caseId).catch(async () => (await getCase(caseId))!.dispute);
+    return await handBack(caseId, d, e instanceof RecoveryPausedError ? `PayPal refused the offer. ${e.message}` : `PayPal refused the offer: ${plainError(e)}`);
   } finally {
     running.delete(lock);
   }
 }
 
-function handBack(caseId: string, d: Dispute, note: string): CaseRecord {
-  const c = getCase(caseId)!;
-  updateCase(caseId, { negotiation: { ...c.negotiation!, status: "HANDED_BACK", note }, dispute: d });
-  addActivity(caseId, `Negotiation handed back to you. ${note}`, "warn");
+async function handBack(caseId: string, d: Dispute, note: string): Promise<CaseRecord> {
+  const c = (await getCase(caseId))!;
+  await updateCase(caseId, { negotiation: { ...c.negotiation!, status: "HANDED_BACK", note }, dispute: d });
+  await addActivity(caseId, `Negotiation handed back to you. ${note}`, "warn");
   // With no offer on the table the seller can choose again (fight, or offer more).
-  return c.submitted && d.status !== "WAITING_FOR_BUYER_RESPONSE" ? updateCase(caseId, { submitted: undefined, status: "READY" }) : getCase(caseId)!;
+  return c.submitted && d.status !== "WAITING_FOR_BUYER_RESPONSE" ? await updateCase(caseId, { submitted: undefined, status: "READY" }) : (await getCase(caseId))!;
 }
 
 const buyerMessages = (d: Dispute) => (d.messages ?? []).filter((m) => m.posted_by === "BUYER");

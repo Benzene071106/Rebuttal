@@ -10,12 +10,15 @@ import type { Dispute, PayPalReceipt } from "../types";
 import { cachedDisputeList, type ListItem } from "./dispute-list-cache";
 import type { EvidenceSubmission, PayPalGateway } from "./gateway";
 import { evidencePdf } from "./evidence-pdf";
-import { makeToolkit, toolkitDefs } from "./toolkit";
+import { makeToolkit, toolkitDefs, type PayPalEnv } from "./toolkit";
 
 const ORDER_MAP = path.join(process.cwd(), "data", "sandbox-orders.json");
 
-export function sandboxGateway(clientId: string, clientSecret: string): PayPalGateway {
-  const tk = makeToolkit(clientId, clientSecret);
+// `env` picks PayPal's sandbox or live API; `webhookId` is the webhook PayPal signs
+// deliveries for (a seller's own, or PAYPAL_WEBHOOK_ID for the shared demo sandbox).
+export function sandboxGateway(clientId: string, clientSecret: string, opts: { env?: PayPalEnv; webhookId?: string | null } = {}): PayPalGateway {
+  const env = opts.env ?? "sandbox";
+  const tk = makeToolkit(clientId, clientSecret, env);
   const defs = toolkitDefs(tk);
 
   async function call(method: string, urlPath: string, body?: unknown | FormData) {
@@ -77,6 +80,8 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
     runTool: (name, input) => toolkit(name, input),
 
     async orderIdForInvoice(invoiceId) {
+      // The seeded order map belongs to the shared demo sandbox only.
+      if (opts.webhookId !== undefined) return null;
       try {
         const map = JSON.parse(fs.readFileSync(ORDER_MAP, "utf8")) as Record<string, string>;
         return map[invoiceId] ?? null;
@@ -208,8 +213,9 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
     },
 
     async verifyWebhook(headers, event) {
-      const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-      if (!webhookId) throw new Error("Set PAYPAL_WEBHOOK_ID to receive PayPal webhooks.");
+      // A seller gateway passes its own webhook id (or null); only the demo sandbox uses the env var.
+      const webhookId = opts.webhookId === undefined ? process.env.PAYPAL_WEBHOOK_ID : opts.webhookId;
+      if (!webhookId) throw new Error("No PayPal webhook is registered for this account (set PAYPAL_WEBHOOK_ID for the demo sandbox).");
       const h = (k: string) => headers.get(k) ?? "";
       const res = await call("POST", "/v1/notifications/verify-webhook-signature", {
         auth_algo: h("paypal-auth-algo"),
@@ -224,6 +230,7 @@ export function sandboxGateway(clientId: string, clientSecret: string): PayPalGa
     },
 
     async simulateRuling(id, outcome) {
+      if (env === "live") throw new Error("PayPal decides real disputes itself; a ruling can only be simulated in the sandbox.");
       await call("POST", `/v1/customer/disputes/${id}/adjudicate`, { adjudication_outcome: outcome });
     },
 

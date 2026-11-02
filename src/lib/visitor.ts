@@ -5,9 +5,13 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
+import { SESSION_COOKIE, sellerForSession, type PayPalConnection } from "./auth/sellers";
 
 export type Mode = "mock" | "sandbox";
-export type Visitor = { id: string; mode: Mode };
+// A signed-in seller. Their "sandbox" mode is their own connected PayPal account
+// (PayPal's sandbox or live API, whichever they connected).
+export type SellerRef = { id: string; email: string; paypal: PayPalConnection | null };
+export type Visitor = { id: string; mode: Mode; seller?: SellerRef };
 
 const VISITOR_COOKIE = "rebuttal_visitor";
 const MODE_COOKIE = "rebuttal_mode";
@@ -15,13 +19,17 @@ const YEAR = 60 * 60 * 24 * 365;
 
 const als = new AsyncLocalStorage<Visitor>();
 
-function sandboxAvailable(): boolean {
+// Whether this visitor has a real PayPal account to switch to: a signed-in seller's own,
+// otherwise the shared demo sandbox configured on the server.
+export function sandboxAvailable(seller?: SellerRef): boolean {
+  if (seller) return Boolean(seller.paypal);
   return Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET);
 }
 
-// The starting mode for a new visitor. PAYPAL_MODE=mock opens on the simulator;
-// without it, sandbox credentials win.
-export function defaultMode(): Mode {
+// The starting mode for a new visitor. A seller with PayPal connected opens on their
+// account; otherwise PAYPAL_MODE=mock opens on the simulator and sandbox credentials win.
+export function defaultMode(seller?: SellerRef): Mode {
+  if (seller) return seller.paypal ? "sandbox" : "mock";
   return process.env.PAYPAL_MODE === "mock" || !sandboxAvailable() ? "mock" : "sandbox";
 }
 
@@ -34,11 +42,19 @@ export function visitor(): Visitor {
   return als.getStore() ?? (server ??= { id: "server", mode: defaultMode() });
 }
 
+// Whose records this request reads and writes: a simulator visitor, a signed-in
+// seller, or the shared demo sandbox.
+export function tenant(v: Visitor = visitor()): string {
+  if (v.mode === "mock") return `mock:${v.id}`;
+  if (v.seller) return `seller:${v.seller.id}`;
+  return "sandbox";
+}
+
 export function runAs<T>(v: Visitor, fn: () => T): T {
   return als.run(v, fn);
 }
 
-function readCookie(req: Request, name: string): string | undefined {
+export function readCookie(req: Request, name: string): string | undefined {
   const raw = req.headers.get("cookie") ?? "";
   for (const part of raw.split(";")) {
     const [k, ...v] = part.trim().split("=");
@@ -53,9 +69,14 @@ export function withVisitor<A extends unknown[]>(handler: (req: Request, ...rest
   return async (req: Request, ...rest: A): Promise<Response> => {
     const existing = readCookie(req, VISITOR_COOKIE);
     const id = existing && /^[a-f0-9-]{36}$/.test(existing) ? existing : crypto.randomUUID();
+    const found = await sellerForSession(readCookie(req, SESSION_COOKIE)).catch((e) => {
+      console.error("session lookup failed:", e instanceof Error ? e.message : e);
+      return null;
+    });
+    const seller: SellerRef | undefined = found ? { id: found.id, email: found.email, paypal: found.paypal } : undefined;
     const wanted = readCookie(req, MODE_COOKIE);
-    const mode: Mode = wanted === "sandbox" && sandboxAvailable() ? "sandbox" : wanted === "mock" ? "mock" : defaultMode();
-    const v: Visitor = { id, mode };
+    const mode: Mode = wanted === "sandbox" && sandboxAvailable(seller) ? "sandbox" : wanted === "mock" ? "mock" : defaultMode(seller);
+    const v: Visitor = { id, mode, seller };
     const res = await als.run(v, () => handler(req, ...rest));
     if (id !== existing) res.headers.append("Set-Cookie", cookie(VISITOR_COOKIE, id));
     if (v.mode !== wanted) res.headers.append("Set-Cookie", cookie(MODE_COOKIE, v.mode));
@@ -63,13 +84,14 @@ export function withVisitor<A extends unknown[]>(handler: (req: Request, ...rest
   };
 }
 
-function cookie(name: string, value: string) {
-  return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${YEAR}; SameSite=Lax; HttpOnly${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+export function cookie(name: string, value: string, maxAge = YEAR) {
+  return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax; HttpOnly${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
 }
 
 // Switches this visitor's mode for the rest of the request; withVisitor writes the cookie.
 export function setVisitorMode(mode: Mode) {
-  if (mode === "sandbox" && !sandboxAvailable()) throw new Error("PayPal sandbox credentials are not configured on this server.");
+  const seller = visitor().seller;
+  if (mode === "sandbox" && !sandboxAvailable(seller)) throw new Error(seller ? "Connect your PayPal account first (Account page)." : "PayPal sandbox credentials are not configured on this server.");
   visitor().mode = mode;
 }
 
@@ -95,8 +117,9 @@ export function liveReadOnly(): boolean {
 export const READ_ONLY_MESSAGE = "The live PayPal sandbox is view-only on the hosted demo. Switch to the Simulator to try every step.";
 
 // True when this visitor is looking at the live sandbox and may not change it.
+// A seller's own PayPal account is always theirs to act on.
 export function viewOnly(): boolean {
-  return visitor().mode === "sandbox" && liveReadOnly();
+  return visitor().mode === "sandbox" && !visitor().seller && liveReadOnly();
 }
 
 export function assertWritable() {

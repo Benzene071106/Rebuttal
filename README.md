@@ -164,17 +164,37 @@ A real end-to-end run for a demo:
 
 `npm run webhook:sandbox -- status` lists the events PayPal sent, `resend <event-id>` replays a real one, and `ping` sends PayPal's signed sample event (answered with 202, since its sample dispute doesn't exist). The sandbox can take a while to create a new dispute, so file it before recording.
 
+## Seller accounts (for real sellers)
+
+The demo above is one shop. With a database, Rebuttal also runs for any number of sellers, each on their own PayPal account:
+
+- **Sign up and sign in** at `/account` (email and password, hashed with scrypt; sessions are random tokens kept as hashes, 30 days).
+- **Connect PayPal:** the seller pastes the Client ID and Secret of a REST app from their own [PayPal developer dashboard](https://developer.paypal.com/dashboard/applications), Live or Sandbox. Rebuttal checks the credentials and that the app may read disputes, then registers a dispute webhook on that app pointing at `/api/webhooks/paypal/<seller id>`. This works for any PayPal business account today, without Rebuttal joining PayPal's partner program.
+- **Separate data:** every case, rule, incident and webhook event is stored under the seller (`seller:<id>`), and a seller's requests and webhooks only ever reach their own PayPal account. The simulator stays available to everyone and stays per browser.
+- **Secrets:** PayPal secrets are encrypted with AES-256-GCM under `REBUTTAL_SECRET_KEY` and never sent to the browser.
+- **Durable and safe to scale:** cases, rules and incidents live in Postgres, merged inside the database so a webhook and a click on two server instances don't overwrite each other. Each PayPal webhook event is handled once, and released for PayPal's retry if handling fails.
+
+Turn it on with these environment variables (the Render blueprint sets the first two):
+
+| Variable | What it is |
+|---|---|
+| `DATABASE_URL` | Postgres connection string. Tables are created on first start. |
+| `REBUTTAL_SECRET_KEY` | Encrypts PayPal secrets: `openssl rand -base64 32`. Keep it; changing it means sellers reconnect PayPal. |
+| `APP_URL` | Public https address for webhooks (falls back to Render's `RENDER_EXTERNAL_URL`). |
+
+Without them the app runs exactly as the hackathon demo, with no sign-in. `/api/health` reports whether the database is reachable.
+
 ## Deploy
 
-`render.yaml` is a Render Blueprint for a free web service: `npm ci && npm run build`, `npm start` (binds to `$PORT`), health check `/api/health`, starting on the simulator (`PAYPAL_MODE=mock`). In Render choose **New > Blueprint**, pick this repository and paste `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` when asked. Without the PayPal keys the app runs on the simulator only.
+`render.yaml` is a Render Blueprint for a free web service: `npm ci && npm run build`, `npm start` (binds to `$PORT`), health check `/api/health`, starting on the simulator (`PAYPAL_MODE=mock`). In Render choose **New > Blueprint**, pick this repository and paste `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` when asked. Without the PayPal keys the app runs on the simulator only. The blueprint also creates a Postgres database and an encryption key, which turn on seller accounts.
 
 ## Tests
 
 ```bash
-npm test   # 62 tests, about 15 seconds, no API keys needed
+npm test   # 77 tests (69 without a database), about 20 seconds, no API keys needed
 ```
 
-The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the fixed rule score (the same order always gets the same level, whatever the model says) and the rule-based fallback when the model fails. The network tests cover the salted buyer hash, which buyers get flagged, the shield's network signal and what this shop shares. The bulk-approve tests cover the server-side cap and guardrails and a PayPal failure on one row. The Gemini tests cover moving to the fallback model on 429, 503 and timeouts, temperature 0, and the saved analysis with its notice when every model fails. The health test checks `/api/health` answers without calling PayPal or Gemini.
+The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the fixed rule score (the same order always gets the same level, whatever the model says) and the rule-based fallback when the model fails. The network tests cover the salted buyer hash, which buyers get flagged, the shield's network signal and what this shop shares. The bulk-approve tests cover the server-side cap and guardrails and a PayPal failure on one row. The Gemini tests cover moving to the fallback model on 429, 503 and timeouts, temperature 0, and the saved analysis with its notice when every model fails. The health test checks `/api/health` answers without calling PayPal or Gemini. The store tests run one contract (merges, concurrent writes, tenant separation, the incident cap, webhook de-duplication) against memory and Postgres, and the account tests cover passwords, encrypted PayPal secrets, sessions and per-seller data. Set `TEST_DATABASE_URL` to a scratch Postgres database to include the Postgres runs.
 
 ### Self-healing, in one table
 
@@ -198,6 +218,10 @@ src/lib/paypal/mock.ts      In-memory PayPal simulator for demos and tests
 src/lib/actions.ts          Executes the approved decision; maps PayPal outcomes
 src/lib/autopilot.ts        Webhook -> investigation -> seller rules -> PayPal action or alert
 src/lib/rules.ts            Seller autopilot rules and guardrails
+src/lib/store/              Tenant-scoped storage: Postgres (sellers) and memory (simulator)
+src/lib/auth/               Seller accounts, sessions, password hashing and secret encryption
+src/lib/paypal/connect.ts   Connecting a seller's PayPal app and registering its webhook
+src/lib/webhooks/paypal.ts  Verified, de-duplicated dispute webhooks for the demo and each seller
 src/lib/negotiation.ts      AI negotiator: haggles a partial refund inside the seller's ceiling
 src/lib/shield.ts           Dispute shield: risk check on paid orders, with dispute memory
 src/lib/recovery.ts         Self-healing PayPal calls: read PayPal's error, retry/refresh, or AI diagnosis
@@ -205,6 +229,7 @@ src/lib/demo/scenarios.ts   Demo shop data: listings, messages, carrier scans
 src/components/Inbox.tsx    Disputes home: KPIs, latest alerts, ranked queue (AG Grid: search, column filters, live totals row, expandable reasoning rows, cell flash, saved layout, next step)
 src/components/Protect.tsx  Protect page: dispute shield and dispute memory grid
 src/components/Insights.tsx Insights page: savings, linked charts, outcomes ledger with CSV export, incidents, autopilot history
+src/components/Account.tsx  Sign in, create an account, connect PayPal
 src/components/TopBar.tsx   Three-tab nav, Simulator tools menu, Autopilot rules drawer
 src/components/CasesProvider.tsx  One shared poller for disputes, stats and rules
 src/components/InboxCharts.tsx  AG Charts that follow the grid's filters; clicking a bar filters the grid

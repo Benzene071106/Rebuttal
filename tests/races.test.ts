@@ -10,16 +10,16 @@ import { resetRules } from "../src/lib/rules";
 process.env.PAYPAL_MODE = "mock";
 
 describe("one action per dispute at a time", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetMock();
-    resetCases();
-    resetRules();
-    resetIncidents();
+    await resetCases();
+    await resetRules();
+    await resetIncidents();
   });
 
   it("sends only one response when approve is clicked five times during a PayPal outage", async () => {
     const [c] = await syncCases();
-    updateCase(c.id, { status: "READY" });
+    await updateCase(c.id, { status: "READY" });
     armFault("OUTAGE"); // slows the first call down with retries, widening the race window
     const results = await Promise.allSettled(Array.from({ length: 5 }, () => approve(c.id, { decision: "FIGHT", response: "Tracking shows delivery." })));
     const ok = results.filter((r) => r.status === "fulfilled");
@@ -37,20 +37,20 @@ describe("one action per dispute at a time", () => {
     expect(c, "a demo dispute with a saved investigation").toBeDefined();
     const analysis = runAnalysis(c!.id); // replays the saved trace slowly
     await new Promise((r) => setTimeout(r, 700));
-    expect(getCase(c!.id)?.status).toBe("ANALYZING");
+    expect((await getCase(c!.id))?.status).toBe("ANALYZING");
     await expect(approve(c!.id, { decision: "REFUND", response: "Refunding." })).rejects.toThrow(/investigation|analysis/i);
     const done = await analysis;
     expect(done.status).toBe("READY");
     const sent = await approve(c!.id, { decision: "REFUND", response: "Refunding." });
     expect(sent.status).toBe("REFUNDED");
-    expect(getCase(c!.id)?.status).toBe("REFUNDED");
+    expect((await getCase(c!.id))?.status).toBe("REFUNDED");
   }, 30_000);
 
   it("rounds offers to cents and refuses one that rounds to $0.00", async () => {
     const [c] = await syncCases();
-    updateCase(c.id, { status: "READY" });
+    await updateCase(c.id, { status: "READY" });
     await expect(approve(c.id, { decision: "OFFER", response: "Partial refund.", offer_amount: 0.001 })).rejects.toThrow("$0.01");
-    expect(getCase(c.id)?.submitted).toBeUndefined();
+    expect((await getCase(c.id))?.submitted).toBeUndefined();
     const sent = await approve(c.id, { decision: "OFFER", response: "Partial refund.", offer_amount: 10.006 });
     expect(sent.submitted?.offer_amount).toBe(10.01);
   });

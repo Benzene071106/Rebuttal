@@ -128,7 +128,7 @@ describe("Gemini fallback", () => {
     process.env.GEMINI_MODEL = "primary";
     process.env.GEMINI_FALLBACK_MODELS = "backup";
     resetMock();
-    resetCases();
+    await resetCases();
     const [c] = await syncCases();
     saveInvestigation(c.dispute, { model: "gemini:x", recommendation: rec as any, trace: [] });
     // No network here, so a fresh run fails on every model.
@@ -159,7 +159,7 @@ describe("investigation cache", () => {
     process.env.REBUTTAL_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "rebuttal-cache-"));
     delete process.env.GEMINI_API_KEY;
     resetMock();
-    resetCases();
+    await resetCases();
     const [c] = await syncCases();
     saveInvestigation(c.dispute, { model: "gemini:x", recommendation: rec as any, trace: [] });
     const steps: string[] = [];
@@ -170,7 +170,7 @@ describe("investigation cache", () => {
     // A fresh run needs a model, and none is configured here, so the saved one is used.
     const again = await runAnalysis(c.id, undefined, { fresh: true });
     expect(again.notice).toMatch(/saved analysis/);
-    resetCases();
+    await resetCases();
     const [other] = (await syncCases()).filter((x) => x.id !== c.id);
     await expect(runAnalysis(other.id, undefined, { fresh: true })).rejects.toThrow("No AI model configured");
     delete process.env.REBUTTAL_CACHE_DIR;
