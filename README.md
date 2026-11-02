@@ -12,6 +12,8 @@ It runs on **autopilot**: PayPal's dispute webhook starts the investigation, and
 
 When a partial refund is the right move, the seller can hand it to the **AI negotiator**. The seller sets a ceiling the buyer never sees, and the agent haggles in the PayPal dispute conversation. It opens low, concedes in shrinking steps, explains each offer, and settles inside the ceiling or hands the case back. In the demo, a $96 chipped-mug claim opens at $24. The buyer counters at $48, the agent offers $32, and the buyer accepts, so the seller keeps $64. Code enforces the ceiling, no-backwards and accept rules after the model answers, so the model can't overspend.
 
+The **repeat-scammer network** means one seller's proven dispute protects every other seller. When a Rebuttal shop wins a dispute because its evidence contradicted the buyer (a parcel signed for, then claimed "never arrived"), it shares a report: a salted one-way hash of the buyer's PayPal email, the claim type and what the evidence showed. No names, addresses or amounts. Another shop sees the warning on **Protect** before it ships to that account, on the dispute itself while it answers, and as a **Network** badge in the queue; the shield scores it as a sourced signal. In the demo the other shops are simulated and labeled so; the shop's own reports come from its real case history ([`src/lib/network.ts`](src/lib/network.ts)).
+
 The **dispute shield** works before a dispute exists. When an order is paid, the agent checks its dispute risk before the seller ships. It reads the PayPal order (`get_order` from the Agent Toolkit) and the buyer's history, including every dispute Rebuttal has handled for that buyer (**dispute memory**). Then it tells the seller what to do while they still can. In the demo:
 
 - A $236 bag going overnight to a package forwarder under another name, from an unverified first-time account, is flagged **HIGH**. The advice is to ship only to the PayPal address or refund.
@@ -138,7 +140,15 @@ Disputes over $11 escalate on day 11 in the sandbox; see PayPal's [dispute testi
 
 ### Webhooks
 
-In the sandbox app, add a webhook to `https://<your-host>/api/webhooks/paypal` for the `Customer dispute created / updated / resolved` events. Set `PAYPAL_WEBHOOK_ID` to its ID. New disputes then go through autopilot ([`src/lib/autopilot.ts`](src/lib/autopilot.ts)): investigated in the background, then answered or flagged for approval under the seller's rules.
+`npm run webhook:sandbox -- setup https://<your-host>` registers the dispute webhook (`CUSTOMER.DISPUTE.CREATED / UPDATED / RESOLVED` to `https://<your-host>/api/webhooks/paypal`) on your sandbox app and prints its ID; set `PAYPAL_WEBHOOK_ID` to it and redeploy. (Or add it by hand under the sandbox app's Webhooks.) New disputes then go through autopilot ([`src/lib/autopilot.ts`](src/lib/autopilot.ts)): the signature is verified with PayPal, the dispute investigated in the background, then answered or flagged for approval under the seller's rules.
+
+A real end-to-end run for a demo:
+
+1. `npm run seed:sandbox -- create JK-1063`, approve the order as the sandbox buyer, then `npm run seed:sandbox -- capture`.
+2. Log in to sandbox.paypal.com as the sandbox buyer and report the payment as "item not received".
+3. PayPal posts `CUSTOMER.DISPUTE.CREATED`; on the site, switch to **Live PayPal sandbox** and watch the alert: autopilot refunds the $28 claim within the default rule, or flags it for approval.
+
+`npm run webhook:sandbox -- status` lists the events PayPal sent, `resend <event-id>` replays a real one, and `ping` sends PayPal's signed sample event (answered with 202, since its sample dispute doesn't exist). The sandbox can take a while to create a new dispute, so file it before recording.
 
 ## Deploy
 
@@ -147,10 +157,21 @@ In the sandbox app, add a webhook to `https://<your-host>/api/webhooks/paypal` f
 ## Tests
 
 ```bash
-npm test
+npm test   # 46 tests, about 15 seconds, no API keys needed
 ```
 
-The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the score band and failures.
+The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the fixed rule score (the same order always gets the same level, whatever the model says) and the rule-based fallback when the model fails. The network tests cover the salted buyer hash, which buyers get flagged, the shield's network signal and what this shop shares. The bulk-approve tests cover the server-side cap and guardrails and a PayPal failure on one row. The Gemini tests cover moving to the fallback model on 429, 503 and timeouts, temperature 0, and the saved analysis with its notice when every model fails. The health test checks `/api/health` answers without calling PayPal or Gemini.
+
+### Self-healing, in one table
+
+| PayPal failure | What the agent does | Tested |
+| --- | --- | --- |
+| 5xx or network error | Retries with backoff (twice), logs each attempt with PayPal's `debug_id` | Outage healed end to end |
+| 401 expired token | Gets a new token, retries once | Expired token healed end to end |
+| 422 business refusal (e.g. `INSUFFICIENT_FUNDS`) | No retry. Gemini reads the error and pauses the case with steps, or proposes another response that still waits for the seller | Refused refund paused; alternative stays inside the seller's limits |
+| Gemini down | Rule-based plan instead of the model's | Rule fallback |
+
+Every incident is logged on **Insights** with each attempt and the diagnosis. The agent never edits code and never raises the seller's limits.
 
 ## Project layout
 

@@ -29,7 +29,16 @@ async function handle(req: Request) {
   if (!String(event.event_type).startsWith("CUSTOMER.DISPUTE.")) return Response.json({ ignored: true });
   if (!event.resource?.dispute_id) return Response.json({ error: "No dispute_id" }, { status: 400 });
 
-  const { case: rec, investigate } = await ingestDisputeEvent(event);
+  let ingested;
+  try {
+    ingested = await ingestDisputeEvent(event);
+  } catch (e) {
+    // PayPal's "simulate event" sends a sample dispute that doesn't exist in the sandbox.
+    // The signature already checked out, so accept it without investigating anything.
+    console.warn(`Webhook ${event.id ?? ""} for ${event.resource.dispute_id}: dispute not readable (${e instanceof Error ? e.message : e}).`);
+    return Response.json({ received: true, investigated: false }, { status: 202 });
+  }
+  const { case: rec, investigate } = ingested;
   if (investigate) after(() => runAs(SERVER, () => runAutopilot(rec.id)));
   // The buyer answered an offer from the negotiator: let the agent make its next move.
   else if (getCase(rec.id)?.negotiation?.status === "WAITING_FOR_BUYER") {
