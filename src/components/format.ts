@@ -47,3 +47,10 @@ export function priorityOf(c: CaseRecord): { score: number; label: "Urgent" | "S
   const weight = d === null ? 1 : d <= 3 ? 4 : d <= 7 ? 2 : 1;
   return { score: amount * weight, label: d === null ? null : d <= 3 ? "Urgent" : d <= 7 ? "Soon" : null };
 }
+
+// Splits a list into batches of at most `size` (bulk approve sends 25 per request).
+export function chunk<T>(xs: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += Math.max(1, size)) out.push(xs.slice(i, i + Math.max(1, size)));
+  return out;
+}

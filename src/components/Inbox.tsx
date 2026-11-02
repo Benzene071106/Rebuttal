@@ -9,7 +9,7 @@ import { AlertsFeed } from "./AutopilotPanel";
 import { useCases } from "./CasesProvider";
 import WelcomeTour from "./WelcomeTour";
 import Link from "next/link";
-import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
+import { chunk, daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
 import { gridTheme } from "./grid";
 import { Badge, BUTTON, Card, Kpi } from "./ui";
 
@@ -222,7 +222,10 @@ function bulkBlocker(c: CaseRecord, rules: AutopilotRules | null): string | null
 function BulkBar({ selected, rules, viewOnly, onDone, clear }: { selected: CaseRecord[]; rules: AutopilotRules | null; viewOnly: boolean; onDone: (msg: string) => void; clear: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
-  useEffect(() => setConfirm(false), [selected]);
+  // `selected` is rebuilt on every poll; only reset the confirm step when the ticked
+  // disputes actually change, or a poll between the two clicks undoes the first one.
+  const selectedKey = selected.map((c) => c.id).join(",");
+  useEffect(() => setConfirm(false), [selectedKey]);
   const fresh = selected.filter((c) => c.status === "NEW" || c.status === "ERROR");
   const ready = selected.filter((c) => !bulkBlocker(c, rules));
   const blocked = selected.filter((c) => bulkBlocker(c, rules) && !fresh.includes(c));
@@ -239,14 +242,27 @@ function BulkBar({ selected, rules, viewOnly, onDone, clear }: { selected: CaseR
   async function approveAll() {
     if (!confirm) return setConfirm(true);
     setBusy("approve");
-    const res = await fetch("/api/cases/bulk-approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: ready.map((c) => c.id) }) });
-    const j = await res.json().catch(() => ({}));
+    // The server takes at most 25 per request (BULK_MAX), so send larger selections in batches.
+    const j = { approved: [] as unknown[], skipped: [] as unknown[], failed: [] as unknown[] };
+    let error: string | null = null;
+    for (const ids of chunk(ready.map((c) => c.id), 25)) {
+      const res = await fetch("/api/cases/bulk-approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+      const part = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        error = part.error ?? "Bulk approve failed.";
+        break;
+      }
+      j.approved.push(...part.approved);
+      j.skipped.push(...part.skipped);
+      j.failed.push(...part.failed);
+    }
     setBusy(null);
     setConfirm(false);
-    if (!res.ok) return onDone(j.error ?? "Bulk approve failed.");
+    if (error && !j.approved.length) return onDone(error);
     const parts = [`Sent ${j.approved.length} response${j.approved.length === 1 ? "" : "s"} to PayPal`];
     if (j.skipped.length) parts.push(`${j.skipped.length} skipped`);
     if (j.failed.length) parts.push(`${j.failed.length} paused: open them to see why`);
+    if (error) parts.push(`the rest stopped: ${error}`);
     clear();
     onDone(parts.join(", ") + ".");
   }

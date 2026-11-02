@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { listCases, resetCases, syncCases, updateCase } from "../src/lib/cases";
 import { claudeModel } from "../src/lib/model";
 import { negotiate, validate } from "../src/lib/negotiation";
-import { resetMock } from "../src/lib/paypal/mock";
+import { armFault, resetMock } from "../src/lib/paypal/mock";
+import { listIncidents, resetIncidents } from "../src/lib/recovery";
 import type { Recommendation } from "../src/lib/types";
 
 process.env.PAYPAL_MODE = "mock";
@@ -89,4 +90,39 @@ describe("negotiate", () => {
     expect(out.outcome).toBeUndefined();
     expect(out.status).toBe("READY"); // the seller can fight now
   }, 40_000);
+});
+
+describe("negotiate during a PayPal outage", () => {
+  beforeEach(() => {
+    resetMock();
+    resetCases();
+    resetIncidents();
+  });
+
+  it("retries the offer through the self-healing layer instead of handing back", async () => {
+    const c = await mugCase();
+    armFault("OUTAGE");
+    const broken = { provider: "gemini", model: "x", next: async () => { throw new Error("quota"); } } as any;
+    const out = await negotiate(c.id, { maxRefund: 38.4, model: broken });
+    expect(out.negotiation?.status).toBe("SETTLED");
+    expect(listIncidents().some((i) => i.result === "HEALED")).toBe(true);
+  }, 30_000);
+
+  it("can be started again after it was handed back, and the alert has no raw JSON", async () => {
+    const c = await mugCase();
+    const broken = { provider: "gemini", model: "x", next: async () => { throw new Error("quota"); } } as any;
+    // A business error is not retried, so PayPal refusing the offer hands the case back.
+    const gw = (await import("../src/lib/paypal")).paypal();
+    const real = gw.makeOffer;
+    gw.makeOffer = async () => { throw new Error('PayPal POST /v1/customer/disputes/x/make-offer failed (422): {"name":"UNPROCESSABLE_ENTITY","details":[{"issue":"OFFER_NOT_ALLOWED","description":"Offer not allowed."}]}'); };
+    try {
+      const first = await negotiate(c.id, { maxRefund: 38.4, model: broken });
+      expect(first.negotiation?.status).toBe("HANDED_BACK");
+      expect(first.negotiation?.note).not.toContain("{");
+    } finally {
+      gw.makeOffer = real;
+    }
+    const again = await negotiate(c.id, { maxRefund: 38.4, model: broken });
+    expect(again.negotiation?.status).toBe("SETTLED");
+  }, 30_000);
 });

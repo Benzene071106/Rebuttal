@@ -8,10 +8,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { outcomeFor } from "./actions";
 import { addActivity, getCase, updateCase } from "./cases";
+import { plainError } from "./errors";
 import { defaultModel, type AgentModel } from "./model";
 import type { ChatEntry } from "./model/types";
 import { paypal } from "./paypal";
 import type { ToolDef } from "./paypal/gateway";
+import { RecoveryPausedError, withRecovery } from "./recovery";
 import type { CaseRecord, Dispute, Negotiation, NegotiationTurn } from "./types";
 import { visitor } from "./visitor";
 
@@ -64,7 +66,10 @@ export async function negotiate(caseId: string, opts: { maxRefund?: number; onTu
   if (c.outcome) throw new Error("This dispute is already closed.");
   const amount = Number(c.dispute.dispute_amount.value);
 
-  if (!c.negotiation) {
+  // A handed-back negotiation can be started again with a new ceiling (say after a
+  // PayPal outage stopped it), as long as no offer is still waiting on the buyer.
+  const restart = c.negotiation?.status === "HANDED_BACK" && opts.maxRefund !== undefined && !c.submitted;
+  if (!c.negotiation || restart) {
     if (c.submitted) throw new Error("A response was already sent for this dispute.");
     const max = round2(Number(opts.maxRefund));
     if (!(max > 0 && max < amount)) throw new Error(`The negotiation ceiling must be between $0 and ${money(amount)}.`);
@@ -120,7 +125,8 @@ export async function negotiate(caseId: string, opts: { maxRefund?: number; onTu
         return handBack(caseId, d, `The agent stopped: ${move.reasoning}`);
       }
       const offer = move.action === "ACCEPT" ? ask : move.amount;
-      await gw.makeOffer(caseId, { amount: offer.toFixed(2), currency: d.dispute_amount.currency_code, type: "REFUND", note: move.message, negotiating: true });
+      // Same self-healing as a seller's own offer: outages and expired tokens are retried.
+      await withRecovery(getCase(caseId)!, "OFFER", offer, () => gw.makeOffer(caseId, { amount: offer.toFixed(2), currency: d.dispute_amount.currency_code, type: "REFUND", note: move.message, negotiating: true }));
       push({ at: new Date().toISOString(), from: "AGENT", text: move.message, amount: offer, reasoning: move.reasoning, by: move.by });
       const first = !getCase(caseId)!.submitted;
       updateCase(caseId, {
@@ -132,7 +138,7 @@ export async function negotiate(caseId: string, opts: { maxRefund?: number; onTu
     }
   } catch (e) {
     const d = await gw.getDispute(caseId).catch(() => getCase(caseId)!.dispute);
-    return handBack(caseId, d, `PayPal refused the offer: ${errorText(e)}`);
+    return handBack(caseId, d, e instanceof RecoveryPausedError ? `PayPal refused the offer. ${e.message}` : `PayPal refused the offer: ${plainError(e)}`);
   } finally {
     running.delete(lock);
   }
