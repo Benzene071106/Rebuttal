@@ -10,7 +10,7 @@ export const GET = withVisitor(async () => {
 // Saves this visitor's autopilot rules (or the shared live sandbox rules, where writable).
 export const POST = withVisitor(async (req: Request) => {
   const body = RulesSchema.safeParse(await req.json().catch(() => null));
-  if (!body.success) return Response.json({ error: body.error.message }, { status: 400 });
+  if (!body.success) return Response.json({ error: body.error.issues[0]?.message ?? "Invalid rules." }, { status: 400 });
   try {
     assertWritable();
     return Response.json(setRules(body.data));

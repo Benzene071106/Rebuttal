@@ -27,6 +27,9 @@ type MockState = { rows: Map<string, MockRow>; nextSeq: number; filed: Set<strin
 
 // Faults the simulator can inject into its next PayPal write call, to show the agent
 // recovering. Each throws the same error text the live sandbox gateway throws.
+// Keeps one visitor's simulator (and the dispute memory) a sensible size.
+export const MAX_OPEN_SIM_DISPUTES = 50;
+
 export type FaultKind = "OUTAGE" | "TOKEN_EXPIRED" | "INSUFFICIENT_FUNDS";
 const FAULT_CALLS: Record<FaultKind, number> = { OUTAGE: 2, TOKEN_EXPIRED: 1, INSUFFICIENT_FUNDS: 1 };
 
@@ -42,8 +45,12 @@ function maybeFail(op: "accept-claim" | "make-offer" | "provide-evidence", id: s
   const st = state();
   const f = st.fault;
   if (!f) return;
-  // Insufficient funds only applies to refunds; other writes go through.
-  if (f.kind === "INSUFFICIENT_FUNDS" && op !== "accept-claim") return;
+  // Insufficient funds only applies to refunds; another write goes through and uses up
+  // the fault, so "break the next call" never lingers onto a later refund.
+  if (f.kind === "INSUFFICIENT_FUNDS" && op !== "accept-claim") {
+    st.fault = undefined;
+    return;
+  }
   if (--f.left <= 0) st.fault = undefined;
   // Stable per dispute and fault, like a real debug_id for one failing request.
   const debug = crypto.createHash("sha256").update(`${f.kind}:${op}:${id}:${f.left}`).digest("hex").slice(0, 13);
@@ -398,6 +405,8 @@ export const mockGateway: PayPalGateway = {
 
   async fileTestDispute(scenarioKey) {
     const st = state();
+    const open = [...st.rows.values()].filter((r) => !r.dispute.dispute_outcome).length;
+    if (open >= MAX_OPEN_SIM_DISPUTES) throw new Error(`The simulator holds at most ${MAX_OPEN_SIM_DISPUTES} open disputes. Answer some, or use Reset in Simulator tools.`);
     const s = scenarioKey ? SCENARIOS.find((x) => x.key === scenarioKey) : SCENARIOS.find((x) => !st.filed.has(x.key));
     if (!s) {
       // Every scenario is already in the inbox: file a fresh copy of the first one.

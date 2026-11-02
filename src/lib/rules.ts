@@ -15,6 +15,10 @@ export const RulesSchema = z.object({
   auto_fight_min_win: z.number().min(0).max(1),
   max_auto_amount: z.number().min(0).max(10_000),
   negotiate_max_pct: z.number().min(0).max(0.95).default(DEFAULT_RULES.negotiate_max_pct),
+}).refine((r) => r.auto_refund_max <= r.max_auto_amount, {
+  // Same cross-field check as the rules grid, enforced for any client.
+  message: "The auto-refund limit can't be above the hard cap.",
+  path: ["auto_refund_max"],
 });
 
 const FILE = path.join(process.cwd(), "data", "rules.json");
