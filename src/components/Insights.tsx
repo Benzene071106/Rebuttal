@@ -2,6 +2,7 @@
 
 import type { ColDef, GridApi, ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
+import { forPhone, usePhone } from "./phone";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { CaseRecord } from "@/lib/types";
@@ -82,7 +83,8 @@ export default function Insights() {
   const [claim, setClaim] = useState<string | null>(null);
   const s = data?.stats;
   const enterprise = useGridEnterprise();
-  const columnDefs = useMemo(() => (enterprise ? enterpriseCols(COLS) : COLS), [enterprise]);
+  const phone = usePhone();
+  const columnDefs = useMemo(() => forPhone(enterprise ? enterpriseCols(COLS) : COLS, phone, ["claim", "decision", "by", "closed", "refunded"], ["result"]), [enterprise, phone]);
   const enterpriseProps = enterprise
     ? {
         rowGroupPanelShow: "always" as const,

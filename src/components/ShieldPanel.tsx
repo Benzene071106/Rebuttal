@@ -2,7 +2,8 @@
 
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forPhone, usePhone } from "./phone";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ShieldRow } from "@/lib/shield";
 import { money } from "./format";
 import { gridTheme } from "./grid";
@@ -99,6 +100,8 @@ function ShieldDetail({ data, context }: ICellRendererParams<ShieldGridRow>) {
 // Dispute shield: paid orders waiting to ship, each checked by the agent for dispute
 // risk before the seller ships it, using the buyer's dispute history with the shop.
 export default function ShieldPanel({ viewOnly }: { viewOnly: boolean }) {
+  const phone = usePhone();
+  const phoneCols = useMemo(() => forPhone(COLS, phone, ["invoice_id", "ship_to", "headline"], ["risk"]), [phone]);
   const [orders, setOrders] = useState<ShieldRow[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +161,7 @@ export default function ShieldPanel({ viewOnly }: { viewOnly: boolean }) {
           ref={grid}
           theme={gridTheme}
           rowData={rows}
-          columnDefs={COLS}
+          columnDefs={phoneCols}
           context={{ open, recheck, viewOnly }}
           domLayout="autoHeight"
           getRowId={(p) => `${p.data.order_id}${p.data.detail ? ":detail" : ""}`}

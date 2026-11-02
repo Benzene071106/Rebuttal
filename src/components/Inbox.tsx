@@ -2,6 +2,7 @@
 
 import type { ColDef, ColumnState, GridApi, ICellRendererParams, IRowNode } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
+import { forPhone, usePhone } from "./phone";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutopilotRules, CaseRecord } from "@/lib/types";
@@ -330,6 +331,7 @@ export default function Inbox() {
   }, []);
 
 
+  const phone = usePhone();
   const cols = useMemo<ColDef<Row>[]>(
     () => [
       {
@@ -455,6 +457,8 @@ export default function Inbox() {
     ],
     [],
   );
+  // Phones keep Buyer, Amount, Due in and Next step (pinned right); the rest are in the row detail.
+  const phoneCols = useMemo(() => forPhone(cols, phone, ["claim", "stage", "priority", "agent"], ["next"]), [cols, phone]);
 
 
   // Keep the seller's column layout (order, widths, sort) between visits.
@@ -552,7 +556,7 @@ export default function Inbox() {
           onColumnMoved={(e) => e.finished && saveColumns(e.api)}
           onColumnResized={(e) => e.finished && saveColumns(e.api)}
           onSortChanged={(e) => saveColumns(e.api)}
-          columnDefs={cols}
+          columnDefs={phoneCols}
           quickFilterText={search}
           // The id changes with the numbers so AG Grid redraws the pinned row.
           pinnedBottomRowData={totals ? [{ id: `totals-${JSON.stringify(totals)}`, totals } as Row] : []}

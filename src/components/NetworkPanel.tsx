@@ -2,7 +2,8 @@
 
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useEffect, useState } from "react";
+import { forPhone, usePhone } from "./phone";
+import { useEffect, useMemo, useState } from "react";
 import type { NetworkAccount } from "@/lib/network";
 import { REASON_LABEL } from "./format";
 import { gridTheme } from "./grid";
@@ -55,6 +56,8 @@ const COLS: ColDef<Account>[] = [
 
 // The headline of Protect: repeat disputers reported across Rebuttal shops.
 export default function NetworkPanel({ mode }: { mode?: "mock" | "sandbox" }) {
+  const phone = usePhone();
+  const phoneCols = useMemo(() => forPhone(COLS, phone, ["shops", "claims", "evidence"], ["order"]), [phone]);
   const [data, setData] = useState<Payload | null>(null);
   useEffect(() => {
     if (!mode) return;
@@ -82,7 +85,7 @@ export default function NetworkPanel({ mode }: { mode?: "mock" | "sandbox" }) {
       <AgGridReact<Account>
         theme={gridTheme}
         rowData={data?.accounts ?? []}
-        columnDefs={COLS}
+        columnDefs={phoneCols}
         domLayout="autoHeight"
         rowHeight={52}
         pagination

@@ -18,3 +18,15 @@ describe("plainError", () => {
     expect(plainError(new Error("Plain words stay."))).toBe("Plain words stay.");
   });
 });
+
+describe("phone columns", () => {
+  it("hides low-value columns and pins the action column on a phone, and leaves desktop alone", async () => {
+    const { forPhone } = await import("../src/components/phone");
+    const cols = [{ colId: "buyer" }, { colId: "claim" }, { field: "amount" }, { colId: "next" }] as any[];
+    const phone = forPhone(cols, true, ["claim"], ["next"]);
+    expect(phone.map((c) => [c.colId ?? c.field, !!c.hide, c.pinned ?? null])).toEqual([["buyer", false, null], ["claim", true, null], ["amount", false, null], ["next", false, "right"]]);
+    const desk = forPhone(cols, false, ["claim"], ["next"]);
+    expect(desk.find((c) => c.colId === "claim")?.hide).toBe(false);
+    expect(desk.find((c) => c.colId === "next")?.pinned).toBeNull();
+  });
+});

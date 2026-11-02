@@ -2,6 +2,7 @@
 
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
+import { forPhone, usePhone } from "./phone";
 import { useEffect, useMemo, useState } from "react";
 import type { ShieldRow } from "@/lib/shield";
 import { useCases } from "./CasesProvider";
@@ -29,6 +30,8 @@ const COLS: ColDef<Buyer>[] = [
 
 // Before you ship: the dispute shield, and the buyers Rebuttal remembers from past disputes.
 export default function Protect() {
+  const phone = usePhone();
+  const phoneCols = useMemo(() => forPhone(COLS, phone, ["email", "disputed", "claims", "lastOutcome"], ["pendingOrder"]), [phone]);
   const { data } = useCases();
   const [orders, setOrders] = useState<ShieldRow[]>([]);
 
@@ -78,7 +81,7 @@ export default function Protect() {
           <AgGridReact<Buyer>
             theme={gridTheme}
             rowData={buyers}
-            columnDefs={COLS}
+            columnDefs={phoneCols}
             domLayout="autoHeight"
             rowHeight={48}
             pagination
