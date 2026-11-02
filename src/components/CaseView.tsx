@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CaseRecord, Decision, NegotiationTurn, TraceStep } from "@/lib/types";
 import EvidenceGrid from "./EvidenceGrid";
 import NegotiationPanel from "./NegotiationPanel";
+import NetworkBanner from "./NetworkBanner";
 import WhyPanel from "./WhyPanel";
 import { daysLeft, DECISION_COLOR, DECISION_LABEL, money, REASON_LABEL, statusLabel } from "./format";
 
@@ -231,6 +232,8 @@ export default function CaseView({ id }: { id: string }) {
       {error ? <p className="rounded-md border border-danger px-3 py-2 text-sm text-danger">{error}</p> : null}
 
       {c.outcome ? <div ref={banner}><OutcomeBanner c={c} /></div> : null}
+
+      {c.history ? null : <NetworkBanner caseId={c.id} />}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
         <div className="space-y-6">

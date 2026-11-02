@@ -61,9 +61,17 @@ const blank = () => null;
 
 function BuyerCell({ data }: ICellRendererParams<Row>) {
   const t = data?.dispute.disputed_transactions[0];
+  const shops = useCases().data?.network?.[data?.id ?? ""];
   return (
     <div className="flex h-full flex-col justify-center leading-tight">
-      <span className="font-medium">{t?.buyer?.name ?? "Unknown buyer"}</span>
+      <span className="flex items-center gap-1.5 font-medium">
+        {t?.buyer?.name ?? "Unknown buyer"}
+        {shops ? (
+          <span title={`Reported by ${shops} other Rebuttal shop${shops === 1 ? "" : "s"}. See Protect.`} className="rounded-full px-1.5 text-[10px] font-semibold leading-4" style={{ color: "var(--danger)", border: "1px solid currentColor" }}>
+            Network: {shops}
+          </span>
+        ) : null}
+      </span>
       <span className="truncate text-xs text-muted">{t?.items?.[0]?.item_description ?? t?.invoice_number}</span>
     </div>
   );

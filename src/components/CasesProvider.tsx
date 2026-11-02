@@ -7,7 +7,7 @@ export type Stats = {
   open: number; at_risk: number; kept: number; won: number; decided: number; rulings: number;
   answered: number; autopilot: number; hours_saved: number; due_soon: number; due_soon_amount: number;
 };
-export type Payload = { mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?: boolean; cases: CaseRecord[]; stats: Stats };
+export type Payload = { mode: "mock" | "sandbox"; sandboxAvailable?: boolean; viewOnly?: boolean; cases: CaseRecord[]; stats: Stats; network?: Record<string, number> };
 
 type Ctx = {
   data: Payload | null;

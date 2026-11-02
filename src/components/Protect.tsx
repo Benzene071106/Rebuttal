@@ -7,6 +7,7 @@ import type { ShieldRow } from "@/lib/shield";
 import { useCases } from "./CasesProvider";
 import { money, REASON_LABEL } from "./format";
 import { gridTheme } from "./grid";
+import NetworkPanel from "./NetworkPanel";
 import ShieldPanel from "./ShieldPanel";
 import { Badge, Card, Empty } from "./ui";
 
@@ -59,8 +60,10 @@ export default function Protect() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Protect</h1>
-        <p className="text-sm text-muted">Stop disputes before they start: the agent checks every paid order before you ship it, and remembers every buyer who has disputed with you.</p>
+        <p className="text-sm text-muted">Stop disputes before they start: see buyers other sellers caught, check every paid order before you ship it, and remember every buyer who has disputed with you.</p>
       </div>
+
+      <NetworkPanel mode={data?.mode} />
 
       {data?.mode === "mock" ? (
         <ShieldPanel key={data.cases.length ? "on" : "reset"} viewOnly={Boolean(data.viewOnly)} />

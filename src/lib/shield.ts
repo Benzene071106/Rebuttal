@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { listCases, syncCases } from "./cases";
+import { networkFor } from "./network";
 import { PENDING_ORDERS } from "./demo/orders";
 import { defaultModel, type AgentModel } from "./model";
 import type { ChatEntry, ToolResult } from "./model/types";
@@ -44,6 +45,7 @@ What matters:
 - Shipping somewhere other than the buyer's PayPal address, especially a package forwarder or a different recipient name. PayPal Seller Protection generally only covers items shipped to the address on the transaction.
 - A first-time buyer, an unverified PayPal account, an expensive order, and paid overnight shipping together, which is the usual pattern of stolen-account fraud.
 - Past disputes the buyer filed with this shop, and whether the shop's evidence contradicted them (for example a "not received" claim on a parcel signed for by the buyer). Say this plainly; it is the strongest signal.
+- Reports from other Rebuttal shops (network) on the same PayPal account, where their evidence contradicted the buyer's claim. Name it as the Rebuttal network.
 - A repeat buyer with completed orders and no disputes lowers the risk.
 
 Rules:
@@ -70,7 +72,7 @@ const SUBMIT_TOOL: ToolDef = {
 const HISTORY_TOOL: ToolDef = {
   name: "get_buyer_history",
   description:
-    "Look up a buyer's history with the shop by their PayPal email: completed orders, and every dispute they have filed that Rebuttal handled, with what the shop's evidence showed (carrier delivery, signature) and how it ended.",
+    "Look up a buyer's history with the shop by their PayPal email: completed orders, and every dispute they have filed that Rebuttal handled, with what the shop's evidence showed (carrier delivery, signature) and how it ended, plus reports on the same PayPal account from other shops in the Rebuttal network.",
   input_schema: {
     type: "object",
     properties: { email: { type: "string", description: "The buyer's PayPal email address, from the order's payer." } },
@@ -101,6 +103,8 @@ export const RISK_WEIGHTS = {
   morePastDisputes: 15, // each further one
   contradicted: 15, // the shop's evidence contradicted a past claim (signed for, delivered)
   cleanRepeat: -5, // completed orders and no disputes
+  networkFirst: 20, // another Rebuttal shop reported this account
+  networkMore: 5, // each further shop
 } as const;
 
 export type RuleCheck = { score: number; risk: RiskVerdict["risk"]; signals: RiskSignal[] };
@@ -109,7 +113,7 @@ type BuyerHistory = Awaited<ReturnType<typeof getBuyerHistory>>;
 const FORWARDER = /forward|c\/o\b|#fwd|reship|freight|parcel ?bridge|shipito|myus/i;
 const norm = (x: unknown) => String(x ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-export function scoreOrder(order: any, history: Pick<BuyerHistory, "completed_orders" | "disputes">): RuleCheck {
+export function scoreOrder(order: any, history: Pick<BuyerHistory, "completed_orders" | "disputes"> & { network?: BuyerHistory["network"] }): RuleCheck {
   const W = RISK_WEIGHTS;
   const signals: RiskSignal[] = [];
   let score: number = W.base;
@@ -145,7 +149,12 @@ export function scoreOrder(order: any, history: Pick<BuyerHistory, "completed_or
     const ev = d.shop_evidence;
     if (ev?.signed_by && /NOT_RECEIVED/.test(String(d.reason))) add(W.contradicted, `That parcel was signed for by ${ev.signed_by}, which contradicts the claim.`, "get_buyer_history");
   });
-  if (!disputes.length && history.completed_orders > 0) {
+  const net = history.network;
+  if (net?.other_shops) {
+    const claims = [...new Set(net.reports.map((x) => String(x.claim).toLowerCase().replaceAll("_", " ").replace("merchandise or service ", "item ")))].join(", ");
+    add(W.networkFirst + W.networkMore * (net.other_shops - 1), `Rebuttal network: ${net.other_shops} other shop${net.other_shops === 1 ? "" : "s"} reported this PayPal account (${claims}) after their evidence contradicted the claim.`, "rebuttal_network");
+  }
+  if (!disputes.length && !net?.other_shops && history.completed_orders > 0) {
     const n = history.completed_orders;
     add(W.cleanRepeat, `Repeat buyer: ${n} completed order${n === 1 ? "" : "s"} and no disputes.`, "get_buyer_history");
   }
@@ -197,11 +206,17 @@ export async function getBuyerHistory(email: string) {
         };
       }),
   );
+  const net = networkFor(key);
   return {
     email: key,
     completed_orders: order?.prior_purchases ?? 0,
     disputes_filed: disputes.length,
     disputes,
+    // Other Rebuttal shops' reports on this PayPal account (hashed; no other shop's data).
+    network: {
+      other_shops: net.other_shops,
+      reports: net.reports.map((r) => ({ claim: r.reason, evidence: r.evidence, outcome: r.outcome, reported: r.at.slice(0, 10) })),
+    },
   };
 }
 
@@ -282,7 +297,8 @@ function summarizeShield(tool: string, out: unknown): string {
   }
   if (tool === "get_buyer_history") {
     const n = o.disputes_filed ?? 0;
-    return `${o.completed_orders ?? 0} completed order${o.completed_orders === 1 ? "" : "s"}, ${n} past dispute${n === 1 ? "" : "s"}${n ? ` (${o.disputes.map((d: any) => d.invoice_id).join(", ")})` : ""}`;
+    const net = o.network?.other_shops ?? 0;
+    return `${o.completed_orders ?? 0} completed order${o.completed_orders === 1 ? "" : "s"}, ${n} past dispute${n === 1 ? "" : "s"}${n ? ` (${o.disputes.map((d: any) => d.invoice_id).join(", ")})` : ""}${net ? `; reported by ${net} other Rebuttal shop${net === 1 ? "" : "s"}` : ""}`;
   }
   return "Done";
 }

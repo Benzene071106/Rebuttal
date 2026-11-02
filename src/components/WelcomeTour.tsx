@@ -17,7 +17,7 @@ const STEPS = [
   },
   {
     title: "Protect and Insights",
-    body: "Protect checks paid orders for dispute risk before you ship them. Insights shows what the agent did: money kept, hours saved, and every PayPal incident it recovered from.",
+    body: "Protect warns you about buyers other Rebuttal sellers already caught (the repeat-scammer network) and checks paid orders for dispute risk before you ship. Insights shows what the agent did: money kept, hours saved, and every PayPal incident it recovered from.",
   },
 ];
 
