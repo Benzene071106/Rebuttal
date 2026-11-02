@@ -2,13 +2,13 @@ import { analyzeDispute } from "./agent";
 import { getCase, updateCase } from "./cases";
 import { scriptedModel } from "./dev/scripted-model";
 import { loadInvestigation, saveInvestigation } from "./investigation-cache";
+import { withCaseLock } from "./locks";
 import { claudeModel } from "./model";
 import { RateLimitError } from "./model/gemini";
 import { paypal } from "./paypal";
 import type { CaseRecord, TraceStep } from "./types";
-import { READ_ONLY_MESSAGE, visitor } from "./visitor";
+import { READ_ONLY_MESSAGE } from "./visitor";
 
-const running = new Set<string>();
 const REPLAY_STEP_MS = 450;
 
 export async function runAnalysis(caseId: string, onStep?: (s: TraceStep) => void, opts: { fresh?: boolean; savedOnly?: boolean } = {}): Promise<CaseRecord> {
@@ -16,11 +16,13 @@ export async function runAnalysis(caseId: string, onStep?: (s: TraceStep) => voi
   if (!c) throw new Error(`Unknown case ${caseId}`);
   if (c.submitted) throw new Error("This dispute already has a response.");
   if (opts.savedOnly && (opts.fresh || !loadInvestigation(c.dispute))) throw new Error(READ_ONLY_MESSAGE);
-  // Simulator dispute IDs repeat across visitors, so the lock is per visitor and mode.
-  const lock = `${visitor().mode === "mock" ? visitor().id : "sandbox"}:${caseId}`;
-  if (running.has(lock)) throw new Error("Analysis is already running for this dispute.");
-  running.add(lock);
+  // Shares the per-dispute lock with approve(), so a response can't be sent mid-investigation.
+  return withCaseLock(caseId, "Analysis", () => investigate(caseId, onStep, opts));
+}
+
+async function investigate(caseId: string, onStep: ((s: TraceStep) => void) | undefined, opts: { fresh?: boolean }): Promise<CaseRecord> {
   try {
+    if (getCase(caseId)?.submitted) throw new Error("This dispute already has a response.");
     const dispute = await paypal().getDispute(caseId);
     updateCase(caseId, { dispute, status: "ANALYZING", trace: [], recommendation: undefined, error: undefined, notice: undefined });
     const trace: TraceStep[] = [];
@@ -56,10 +58,9 @@ export async function runAnalysis(caseId: string, onStep?: (s: TraceStep) => voi
     }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    updateCase(caseId, { status: "ERROR", error });
+    // Never mark an answered dispute as failed.
+    if (!getCase(caseId)?.submitted) updateCase(caseId, { status: "ERROR", error });
     throw e;
-  } finally {
-    running.delete(lock);
   }
 }
 

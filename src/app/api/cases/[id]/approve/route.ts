@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { approve } from "@/lib/actions";
+import { CaseBusyError } from "@/lib/locks";
 import { assertWritable, withVisitor } from "@/lib/visitor";
 
 const Body = z.object({
@@ -17,6 +18,6 @@ export const POST = withVisitor(async (req: Request, ctx: RouteContext<"/api/cas
     assertWritable();
     return Response.json(await approve(id, body.data));
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 422 });
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: e instanceof CaseBusyError ? 409 : 422 });
   }
 });
