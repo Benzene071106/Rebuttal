@@ -36,7 +36,7 @@ The app has three pages, so a seller sees what matters first:
 
 Autopilot rules live in a drawer (**Autopilot rules**, top right), demo controls in **Simulator tools**, and first-time visitors get a 3-step tour.
 
-### AG Grid features used (all Community, no Enterprise license)
+### AG Grid features used (Community, plus Enterprise when a license key is set)
 
 Seven grids: the dispute queue, the outcomes ledger, the dispute shield, the dispute memory, the autopilot rules, the self-healing incident log and the evidence trail on each case.
 
@@ -52,7 +52,10 @@ Seven grids: the dispute queue, the outcomes ledger, the dispute shield, the dis
 - **CSV export** with `columnKeys` that include hidden export-only columns and a `processCellCallback` for dates.
 - **Also:** React cell renderers (risk badges, score bars, deadlines, next-step buttons), tooltips, `wrapText` with `autoHeight` rows, `domLayout="autoHeight"`, custom comparators and multi-column sort.
 - **AG Charts Community** linked both ways with the outcomes grid: charts drawn from the filtered rows, a bar click filters the grid.
-- **Optional Enterprise:** set `AG_GRID_LICENSE_KEY` on the server and the outcomes ledger groups by claim type (row grouping panel, sum totals per group and a grand total) and each dispute expands into a master-detail grid of the agent's findings. Without the key, the Enterprise bundle is never downloaded and every grid stays Community, with no watermark. The hosted demo runs without a key.
+- **AG Grid Enterprise (with `AG_GRID_LICENSE_KEY` on the server):** the key switches on, without a code change:
+  - **Outcomes ledger:** row grouping by claim type with a group-by bar, sum totals per group and a grand total; **pivot mode** and the **Columns and Filters tool panels** in a side bar; **set filters** on claim, decision, answered-by and result; **master-detail**, where each dispute expands into the evidence the agent weighed (its own grid) next to the dispute's timeline; **cell selection** with a **status bar** that sums, averages and counts the cells you drag across; **integrated charts** from the right-click menu (Chart Range, Pivot Chart) and a **Chart in grid** button that draws a cross-filter chart of money kept vs refunded by claim type, in the app's colors, where clicking a bar filters the ledger; and **Excel export**.
+  - **Dispute queue:** a right-click menu to open a dispute, investigate it, or tick it for bulk approve (approval still goes through the confirm step and the server's guardrails), plus Excel export and a status bar with row and selection counts.
+  - Without the key, the Enterprise bundle is never downloaded and every grid stays Community, with no watermark.
 - **Realistic data:** the Simulator starts with 50 closed past disputes (fixed seed, marked as simulated) so the charts, filters and pagination have something to work on.
 
 The inbox works as a triage queue: disputes are ranked by money at risk and days left before PayPal's response deadline, and a savings dashboard shows money protected, hours saved and how many disputes autopilot closed.

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColDef, ColumnState, GridApi, ICellRendererParams, IRowNode } from "ag-grid-community";
+import type { ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridApi, ICellRendererParams, IRowNode, MenuItemDef } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { forPhone, usePhone } from "./phone";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutopilotRules, CaseRecord } from "@/lib/types";
 import { AlertsFeed } from "./AutopilotPanel";
 import { useCases } from "./CasesProvider";
+import { useGridEnterprise } from "./gridEnterprise";
 import WelcomeTour from "./WelcomeTour";
 import Link from "next/link";
 import { chunk, daysLeft, DECISION_COLOR, DECISION_LABEL, money, priorityOf, REASON_LABEL, statusLabel } from "./format";
@@ -477,6 +478,53 @@ export default function Inbox() {
   const s = data?.stats;
   const auto = rules?.enabled;
 
+  // Enterprise only (with AG_GRID_LICENSE_KEY): right-click a dispute to open it,
+  // investigate it or tick it for bulk approve, and a status bar with row counts.
+  const enterprise = useGridEnterprise();
+  const viewOnly = Boolean(data?.viewOnly);
+  const enterpriseProps = enterprise
+    ? {
+        statusBar: {
+          statusPanels: [
+            { statusPanel: "agTotalAndFilteredRowCountComponent", align: "left" as const },
+            { statusPanel: "agSelectedRowCountComponent", align: "right" as const },
+          ],
+        },
+        getContextMenuItems: (p: GetContextMenuItemsParams<Row>) => {
+          const c = p.node?.data;
+          if (!c || c.detail || c.totals) return ["copy", "separator", "excelExport", "csvExport"] as DefaultMenuItem[];
+          const open = !c.submitted && !c.outcome;
+          const items: (DefaultMenuItem | MenuItemDef<Row>)[] = [
+            { name: "Open this dispute", action: () => router.push(`/cases/${c.id}`) },
+            {
+              name: c.status === "NEW" || c.status === "ERROR" ? "Investigate now" : "Re-investigate",
+              disabled: viewOnly || !open || c.status === "ANALYZING",
+              action: () => {
+                setFlash(`Investigating ${c.dispute.disputed_transactions[0]?.buyer?.name ?? c.id}...`);
+                fetch(`/api/cases/${c.id}/analyze`, { method: "POST" })
+                  .then((r) => r.text())
+                  .catch(() => null)
+                  .finally(() => {
+                    setFlash("Investigation finished.");
+                    reload();
+                  });
+              },
+            },
+            {
+              name: "Tick for bulk approve",
+              disabled: viewOnly || !p.node?.selectable || p.node?.isSelected(),
+              action: () => p.node?.setSelected(true),
+            },
+            "separator",
+            "copy",
+            "excelExport",
+            "csvExport",
+          ];
+          return items;
+        },
+      }
+    : {};
+
   return (
     <div className="space-y-5">
       <WelcomeTour />
@@ -542,6 +590,9 @@ export default function Inbox() {
 
       <div data-tour="grid">
         <AgGridReact<Row>
+          // Remount when Enterprise switches on: the status bar is set when the grid starts.
+          key={enterprise ? "enterprise" : "community"}
+          {...enterpriseProps}
           ref={grid}
           theme={gridTheme}
           rowHeight={64}

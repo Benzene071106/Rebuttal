@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColDef, GridApi, ICellRendererParams } from "ag-grid-community";
+import type { ColDef, DefaultMenuItem, GetContextMenuItemsParams, GridApi, ICellRendererParams, MenuItemDef } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { forPhone, usePhone } from "./phone";
 import { useRouter } from "next/navigation";
@@ -60,16 +60,66 @@ const FACTOR_COLS: ColDef<Factor>[] = [
 ];
 
 // Enterprise only (with AG_GRID_LICENSE_KEY): the ledger groups by claim type with
-// totals per group, and each dispute expands into a detail grid of the agent's findings.
+// totals per group, every category can be grouped, pivoted and set-filtered, the money
+// columns aggregate and chart, and each dispute expands into its evidence and timeline.
+const CATEGORIES = ["claim", "decision", "by", "result"];
+const MONEY = ["amount", "kept", "refunded"];
 function enterpriseCols(cols: ColDef<CaseRecord>[]): ColDef<CaseRecord>[] {
-  return cols.map((c) =>
-    c.colId === "claim"
-      ? { ...c, rowGroup: true, hide: true, enableRowGroup: true }
-      : ["amount", "kept", "refunded"].includes(c.colId ?? "")
-        ? { ...c, aggFunc: "sum", enableValue: true }
-        : ["decision", "by", "result"].includes(c.colId ?? "")
-          ? { ...c, enableRowGroup: true }
-          : c,
+  return cols.map((c) => {
+    const id = c.colId ?? "";
+    if (CATEGORIES.includes(id))
+      return {
+        ...c,
+        // Initial, not stateful: the "Chart in grid" button ungroups the ledger at run time.
+        ...(id === "claim" ? { initialRowGroup: true, initialHide: true, hide: undefined } : {}),
+        enableRowGroup: true,
+        enablePivot: true,
+        chartDataType: "category" as const,
+        filter: "agSetColumnFilter",
+        floatingFilter: false,
+        // Result shows a badge; the set filter lists the plain words.
+        ...(id === "result" ? { filterValueGetter: (p: { data?: CaseRecord }) => p.data?.outcome?.result ?? (p.data ? statusLabel(p.data) : "") } : {}),
+      };
+    if (MONEY.includes(id)) return { ...c, aggFunc: "sum", enableValue: true, allowedAggFuncs: ["sum", "avg", "count", "max"], chartDataType: "series" as const };
+    if (id === "buyer") return { ...c, chartDataType: "category" as const };
+    return { ...c, chartDataType: "excluded" as const };
+  });
+}
+
+const cssVar = (name: string, fallback: string) => (typeof window === "undefined" ? fallback : getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback);
+
+// Master-detail: what the agent found on one dispute, next to everything that happened to it.
+function DisputeDetail({ data }: ICellRendererParams<CaseRecord>) {
+  if (!data) return null;
+  const factors = data.recommendation?.factors ?? [];
+  const timeline: Array<{ at: string; text: string }> = [
+    { at: data.dispute.create_time, text: `Buyer opened a ${money(data.dispute.dispute_amount.value)} "${REASON_LABEL[data.dispute.reason] ?? data.dispute.reason}" dispute` },
+    ...(data.activity ?? []).map((a) => ({ at: a.at, text: a.text })),
+    ...(data.submitted ? [{ at: data.submitted.at, text: `${DECISION_LABEL[data.submitted.decision]} sent to PayPal by ${data.submitted.by === "autopilot" ? "autopilot" : "the seller"}` }] : []),
+    ...(data.outcome ? [{ at: data.outcome.at, text: `PayPal closed it: ${data.outcome.result.toLowerCase()}, ${money(data.outcome.amount_kept)} kept` }] : []),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  return (
+    <div className="grid gap-4 p-4 md:grid-cols-[3fr_2fr]" style={{ background: "var(--bg)" }}>
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Evidence the agent weighed</p>
+        {factors.length ? (
+          <AgGridReact<Factor> theme={gridTheme} rowData={factors} columnDefs={FACTOR_COLS} domLayout="autoHeight" defaultColDef={{ cellStyle: { display: "flex", alignItems: "center" } }} suppressCellFocus />
+        ) : (
+          <p className="text-sm text-muted">Not investigated by the agent.</p>
+        )}
+      </div>
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Timeline</p>
+        <ol className="space-y-1.5 text-sm">
+          {timeline.map((t, i) => (
+            <li key={i} className="flex gap-3">
+              <span className="w-14 shrink-0 tabular text-muted">{new Date(t.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+              <span>{t.text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
   );
 }
 
@@ -81,42 +131,113 @@ export default function Insights() {
   const grid = useRef<AgGridReact<CaseRecord>>(null);
   const [shown, setShown] = useState<CaseRecord[]>([]);
   const [claim, setClaim] = useState<string | null>(null);
+  const [chartOpen, setChartOpen] = useState(false);
+  const chartBox = useRef<HTMLDivElement>(null);
   const s = data?.stats;
   const enterprise = useGridEnterprise();
   const phone = usePhone();
-  const columnDefs = useMemo(() => forPhone(enterprise ? enterpriseCols(COLS) : COLS, phone, ["claim", "decision", "by", "closed", "refunded"], ["result"]), [enterprise, phone]);
-  const enterpriseProps = enterprise
+  const columnDefs = useMemo(() => {
+    const cols = forPhone(COLS, phone, ["claim", "decision", "by", "closed", "refunded"], ["result"]);
+    return enterprise ? enterpriseCols(cols) : cols;
+  }, [enterprise, phone]);
+  const enterpriseProps = useMemo(() => enterprise
     ? {
         rowGroupPanelShow: "always" as const,
+        pivotPanelShow: "onlyWhenPivoting" as const,
         groupDefaultExpanded: 0,
         autoGroupColumnDef: { headerName: "Claim type", minWidth: 220 },
         grandTotalRow: "bottom" as const,
         suppressAggFuncInHeader: true,
         masterDetail: true,
-        isRowMaster: (c: CaseRecord) => Boolean(c?.recommendation?.factors?.length),
+        isRowMaster: (c: CaseRecord) => Boolean(c),
         detailRowAutoHeight: true,
-        detailCellRendererParams: {
-          detailGridOptions: { theme: gridTheme, columnDefs: FACTOR_COLS, domLayout: "autoHeight", defaultColDef: { cellStyle: { display: "flex", alignItems: "center" } } },
-          getDetailRowData: (p: { data: CaseRecord; successCallback: (rows: Factor[]) => void }) => p.successCallback(p.data.recommendation?.factors ?? []),
+        detailCellRenderer: DisputeDetail,
+        // Columns (group, pivot, values) and Filters tool panels, closed until opened.
+        sideBar: { toolPanels: ["columns", "filters"] },
+        // Integrated charts use the app's colors: kept in green, refunded in red.
+        customChartThemes: {
+          rebuttal: {
+            baseTheme: "ag-default" as const,
+            // Cross-filter charts take every other color (the in-between one shades the
+            // filtered-out part), so each color is listed twice.
+            palette: { fills: [cssVar("--fight", "#0f5c4d"), cssVar("--fight", "#0f5c4d"), cssVar("--refund", "#8a3b2e"), cssVar("--refund", "#8a3b2e"), cssVar("--offer", "#b7791f")], strokes: [cssVar("--fight", "#0f5c4d"), cssVar("--fight", "#0f5c4d"), cssVar("--refund", "#8a3b2e"), cssVar("--refund", "#8a3b2e"), cssVar("--offer", "#b7791f")] },
+            overrides: { common: { background: { fill: cssVar("--panel", "#ffffff") } } },
+          },
+        },
+        chartThemes: ["rebuttal", "ag-default", "ag-default-dark"],
+        statusBar: {
+          statusPanels: [
+            { statusPanel: "agTotalAndFilteredRowCountComponent", align: "left" as const },
+            { statusPanel: "agAggregationComponent", statusPanelParams: { aggFuncs: ["sum", "avg", "count"] } },
+          ],
+        },
+        // Drag across money cells for live sums in the status bar, or right-click to chart them.
+        cellSelection: true,
+        enableCharts: true,
+        getContextMenuItems: (p: GetContextMenuItemsParams<CaseRecord>) => {
+          const open: MenuItemDef<CaseRecord>[] = p.node?.data ? [{ name: "Open this dispute", action: () => router.push(`/cases/${p.node!.data!.id}`) }] : [];
+          const items: DefaultMenuItem[] = ["copy", "copyWithHeaders", "separator", "chartRange", "pivotChart", "separator", "excelExport", "csvExport"];
+          return [...open, ...(open.length ? (["separator"] as DefaultMenuItem[]) : []), ...items];
         },
       }
-    : {};
+    : {}, [enterprise, router]);
 
   const refresh = useCallback((api: GridApi<CaseRecord>) => {
     const visible: CaseRecord[] = [];
     api.forEachNodeAfterFilter((n) => n.data && visible.push(n.data));
     setShown((cur) => (cur.length === visible.length && cur.every((c, i) => c === visible[i]) ? cur : visible));
-    const m = api.getColumnFilterModel("claim") as { type?: string; filter?: string } | null;
-    setClaim(m?.type === "equals" ? m.filter ?? null : null);
+    const m = api.getColumnFilterModel("claim") as { type?: string; filter?: string; values?: string[] } | null;
+    setClaim(m?.type === "equals" ? m.filter ?? null : m?.values?.length === 1 ? m.values[0] : null);
   }, []);
 
   // Clicking a bar in the chart filters the ledger's Claim column; clicking it again clears it.
-  const filterClaim = useCallback(async (value: string | null) => {
+  const filterClaim = useCallback(
+    async (value: string | null) => {
+      const api = grid.current?.api;
+      if (!api) return;
+      await api.setColumnFilterModel("claim", value ? (enterprise ? { filterType: "set", values: [value] } : { filterType: "text", type: "equals", filter: value }) : null);
+      api.onFilterChanged();
+    },
+    [enterprise],
+  );
+
+  // Enterprise: an AG Grid cross-filter chart of money kept per claim type, drawn by the
+  // grid itself; clicking a bar filters the ledger.
+  function toggleGridChart() {
     const api = grid.current?.api;
     if (!api) return;
-    await api.setColumnFilterModel("claim", value ? { filterType: "text", type: "equals", filter: value } : null);
-    api.onFilterChanged();
-  }, []);
+    if (chartOpen) {
+      api.getChartModels()?.forEach((m) => api.getChartRef(m.chartId)?.destroyChart());
+      // Back to the grouped ledger.
+      api.setRowGroupColumns(["claim"]);
+      api.setColumnsVisible(["claim"], false);
+      api.setGridOption("grandTotalRow", "bottom");
+      return setChartOpen(false);
+    }
+    setChartOpen(true);
+    // The cross-filter chart counts every row it sees, group rows included, so the ledger
+    // goes flat while the chart is open: one row per dispute, each counted once.
+    api.setRowGroupColumns([]);
+    api.setColumnsVisible(["claim"], true);
+    api.setGridOption("grandTotalRow", undefined);
+    requestAnimationFrame(() =>
+      api.createCrossFilterChart({
+        chartType: "column",
+        cellRange: { columns: ["claim", "kept", "refunded"] },
+        aggFunc: "sum",
+        chartContainer: chartBox.current ?? undefined,
+        chartThemeOverrides: {
+          common: { title: { enabled: true, text: "Kept vs refunded by claim type (click a bar to filter)" } },
+          bar: { series: { fillOpacity: 0.9 } },
+        },
+        chartThemeName: "rebuttal",
+      }),
+    );
+  }
+
+  function exportExcel() {
+    grid.current?.api.exportDataAsExcel({ fileName: `rebuttal-outcomes-${new Date().toISOString().slice(0, 10)}.xlsx`, sheetName: "Outcomes" });
+  }
 
   function exportCsv() {
     grid.current?.api.exportDataAsCsv({ fileName: `rebuttal-outcomes-${new Date().toISOString().slice(0, 10)}.csv`, columnKeys: ["id", "buyer", "claim", "amount", "decision", "by", "result", "closed", "kept", "refunded"], processCellCallback: (p) => (p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value) });
@@ -140,9 +261,20 @@ export default function Insights() {
 
       <Card
         title="Outcomes ledger"
-        subtitle={`${enterprise ? "Grouped by claim type (drag columns into the bar to regroup); expand a dispute for the agent's findings. " : ""}The charts above follow this grid's filters (try the Closed date filter). Click a row to open it.${data?.cases.some((c) => c.history) ? ` Includes ${data.cases.filter((c) => c.history).length} simulated past disputes from the demo shop.` : ""}`}
-        right={<button onClick={exportCsv} disabled={!data?.cases.length} className={BUTTON.secondary}>Export outcomes (CSV)</button>}
+        subtitle={`${enterprise ? "Grouped by claim type: drag columns into the bar to regroup, open the side bar to pivot or filter, expand a dispute for its evidence and timeline, drag across amounts for a sum, right-click to chart. " : ""}The charts above follow this grid's filters (try the Closed date filter). Click a row to open it.${data?.cases.some((c) => c.history) ? ` Includes ${data.cases.filter((c) => c.history).length} simulated past disputes from the demo shop.` : ""}`}
+        right={
+          <div className="flex flex-wrap gap-2">
+            {enterprise ? (
+              <>
+                <button onClick={toggleGridChart} disabled={!data?.cases.length} className={BUTTON.secondary}>{chartOpen ? "Hide grid chart" : "Chart in grid"}</button>
+                <button onClick={exportExcel} disabled={!data?.cases.length} className={BUTTON.secondary}>Export to Excel</button>
+              </>
+            ) : null}
+            <button onClick={exportCsv} disabled={!data?.cases.length} className={BUTTON.secondary}>Export outcomes (CSV)</button>
+          </div>
+        }
       >
+        {enterprise ? <div ref={chartBox} className={chartOpen ? "mb-3 h-80 overflow-hidden rounded-md border border-line" : "hidden"} /> : null}
         <AgGridReact<CaseRecord>
           ref={grid}
           // Remount when Enterprise switches on, so grouping and master-detail apply cleanly.
