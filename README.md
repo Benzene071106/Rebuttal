@@ -28,17 +28,20 @@ The **dispute shield** works before a dispute exists. When an order is paid, the
 
 A proposal always waits for the seller's approval. The agent never changes code and never widens the seller's limits. Every incident lands in an AG Grid log with each attempt and the diagnosis. In the simulator, **Simulator tools → Break PayPal's next call** injects an outage, an expired token or insufficient funds, so you can watch it recover.
 
-The app has three pages, so a seller sees what matters first:
+The app has four pages, so a seller sees what matters first:
 
 - **Disputes** (home): money at risk, what's due within 3 days, money protected and whether autopilot is on, the latest alerts, and the ranked dispute queue with one **Next step** per row. Click a row for the full case.
 - **Protect**: the dispute shield on paid orders and a dispute-memory grid of every buyer who has disputed, flagged when they order again.
 - **Insights**: savings, linked charts over an outcomes ledger, the self-healing incident log and the full autopilot history.
+- **Ask AI**: the seller asks a question in plain English ("which claim types cost me the most?") and an AI analyst builds the answer as a live dashboard on **AG Studio**, AG Grid's dashboard component, with Gemini driving AG Studio's agent framework.
 
 Autopilot rules live in a drawer (**Autopilot rules**, top right), demo controls in **Simulator tools**, and first-time visitors get a 3-step tour.
 
-### AG Grid features used (Community, plus Enterprise when a license key is set)
+### Built with AG Grid
 
-Seven grids: the dispute queue, the outcomes ledger, the dispute shield, the dispute memory, the autopilot rules, the self-healing incident log and the evidence trail on each case.
+**AG Studio + the Studio Agent Framework (Ask AI page).** A seller who wants to know where the money goes shouldn't have to build a report. On **Ask AI**, they type a question and AG Studio's own agents build the answer as a dashboard: the lead agent plans, then hands work to the data, page and widget agents, which read the dispute schema, place KPIs, charts and grids, and wire up the fields. Every widget cross-filters the others and stays editable by hand. Studio never calls a model itself, so Rebuttal supplies the model: an `AgLlmAdapter` in the browser ([`src/components/AskStudio.tsx`](src/components/AskStudio.tsx)) sends each turn to [`/api/studio/turn`](src/app/api/studio/turn/route.ts), which converts Studio's conversation and tool schemas to Gemini function calling and back ([`src/lib/model/studio-turn.ts`](src/lib/model/studio-turn.ts)). Making Gemini work with Studio's tools took three fixes, all unit-tested: thought signatures carried through Studio's call ids, recursive layout schemas loosened so Gemini accepts them, and a repair for one-of arguments the model flattens (`type: "page"` back to `type: { id: "page" }`). The data source is one row per dispute with a plain-English description of every field, so the agents know what "kept" and "AI win chance" mean. The page loads AG Studio only when opened; `AG_STUDIO_LICENSE_KEY` removes the trial watermark.
+
+**AG Grid in the rest of the app.** Seven grids: the dispute queue, the outcomes ledger, the dispute shield, the dispute memory, the autopilot rules, the self-healing incident log and the evidence trail on each case.
 
 - **Custom Rebuttal theme (Theming API):** `themeQuartz` with the `iconSetQuartzBold`, `inputStyleBordered` and `checkboxStyleDefault` parts and about 30 params (selection, hover, zebra rows, editing and invalid borders, focus ring, header and pinned-row rules), all set from the app's CSS variables, so all seven grids follow light and dark mode with no grid CSS overrides.
 - **Row selection for bulk approve:** multi-row checkboxes, a header select-all that respects filters, `isRowSelectable` so only open disputes can be ticked, hidden disabled checkboxes and a pinned selection column. The seller ticks rows and approves the agent's refunds and evidence in one click; the server checks the $250 hard cap and the guardrails again for every row.
@@ -139,6 +142,7 @@ Production build: `npm run build && npm start` (binds to `$PORT`, default 3000).
 | `PAYPAL_MODE` | `mock` forces the simulator | |
 | `LIVE_SANDBOX_WRITABLE` | `1` allows approvals on the live sandbox in production (view-only by default) | |
 | `AG_GRID_LICENSE_KEY` | Optional AG Grid Enterprise features on Insights | ag-grid.com |
+| `AG_STUDIO_LICENSE_KEY` | Removes the AG Studio trial watermark on **Ask AI** (all features work without it) | info@ag-grid.com, trial key |
 
 With no PayPal credentials, the app runs against a built-in **PayPal simulator** ([`src/lib/paypal/mock.ts`](src/lib/paypal/mock.ts)). It returns the same JSON shapes as the sandbox and comes with three open disputes and 50 closed past ones for a demo pottery-and-leather shop. Click **Simulate a new dispute** to watch autopilot handle a new case.
 
@@ -194,10 +198,10 @@ Without them the app runs exactly as the hackathon demo, with no sign-in. `/api/
 ## Tests
 
 ```bash
-npm test   # 77 tests (69 without a database), about 20 seconds, no API keys needed
+npm test   # 83 tests (75 without a database), about 20 seconds, no API keys needed
 ```
 
-The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the fixed rule score (the same order always gets the same level, whatever the model says) and the rule-based fallback when the model fails. The network tests cover the salted buyer hash, which buyers get flagged, the shield's network signal and what this shop shares. The bulk-approve tests cover the server-side cap and guardrails and a PayPal failure on one row. The Gemini tests cover moving to the fallback model on 429, 503 and timeouts, temperature 0, and the saved analysis with its notice when every model fails. The health test checks `/api/health` answers without calling PayPal or Gemini. The store tests run one contract (merges, concurrent writes, tenant separation, the incident cap, webhook de-duplication) against memory and Postgres, and the account tests cover passwords, encrypted PayPal secrets, sessions and per-seller data. Set `TEST_DATABASE_URL` to a scratch Postgres database to include the Postgres runs.
+The agent-loop tests drive the real loop and the PayPal simulator with a scripted model. They cover parallel tool results, retries after invalid recommendations, and tool errors returned to the model. The autopilot tests cover every rule and guardrail, a webhook dispute refunded end-to-end, one left for approval, and a repeated webhook. The negotiation tests cover the guardrails, a full haggle settled at $32, the rule fallback and a hand-back. The recovery tests cover reading PayPal's errors, healing an outage and an expired token end to end, no retries on a refused refund, the alternative's guardrails and the rule fallback. The shield tests cover dispute memory, the tools the model may call, the fixed rule score (the same order always gets the same level, whatever the model says) and the rule-based fallback when the model fails. The network tests cover the salted buyer hash, which buyers get flagged, the shield's network signal and what this shop shares. The bulk-approve tests cover the server-side cap and guardrails and a PayPal failure on one row. The Gemini tests cover moving to the fallback model on 429, 503 and timeouts, temperature 0, and the saved analysis with its notice when every model fails. The health test checks `/api/health` answers without calling PayPal or Gemini. The AG Studio tests cover mapping Studio turns to Gemini and back, thought signatures, the recursive-schema fix, the one-of argument repair and moving to the next model on a rate limit or an empty answer. The store tests run one contract (merges, concurrent writes, tenant separation, the incident cap, webhook de-duplication) against memory and Postgres, and the account tests cover passwords, encrypted PayPal secrets, sessions and per-seller data. Set `TEST_DATABASE_URL` to a scratch Postgres database to include the Postgres runs.
 
 ### Self-healing, in one table
 
@@ -232,8 +236,10 @@ src/lib/demo/scenarios.ts   Demo shop data: listings, messages, carrier scans
 src/components/Inbox.tsx    Disputes home: KPIs, latest alerts, ranked queue (AG Grid: search, column filters, live totals row, expandable reasoning rows, cell flash, saved layout, next step)
 src/components/Protect.tsx  Protect page: dispute shield and dispute memory grid
 src/components/Insights.tsx Insights page: savings, linked charts, outcomes ledger with CSV export, incidents, autopilot history
+src/components/AskStudio.tsx  Ask AI page: AG Studio dashboard over every dispute, with a Gemini adapter for AG Studio's agents
+src/lib/model/studio-turn.ts  Server side of that adapter: AG Studio turns to Gemini function calling and back
 src/components/Account.tsx  Sign in, create an account, connect PayPal
-src/components/TopBar.tsx   Three-tab nav, Simulator tools menu, Autopilot rules drawer
+src/components/TopBar.tsx   Four-tab nav, Simulator tools menu, Autopilot rules drawer
 src/components/CasesProvider.tsx  One shared poller for disputes, stats and rules
 src/components/InboxCharts.tsx  AG Charts that follow the grid's filters; clicking a bar filters the grid
 src/components/EvidenceGrid.tsx  Evidence trail: each fact, its PayPal evidence type and source tool (AG Grid)

@@ -11,6 +11,7 @@ const TABS = [
   { href: "/", label: "Disputes" },
   { href: "/protect", label: "Protect" },
   { href: "/insights", label: "Insights" },
+  { href: "/ask", label: "Ask AI" },
 ] as const;
 
 type Fault = "OUTAGE" | "TOKEN_EXPIRED" | "INSUFFICIENT_FUNDS";
