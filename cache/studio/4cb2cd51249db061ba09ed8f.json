@@ -1,0 +1,23 @@
+{
+ "key": "4cb2cd51249db061ba09ed8f",
+ "saved_at": "2026-11-06T13:05:38.994Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zmcoi_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_5371456169283800725~EmAKXgFpFH0T2SrZNbtqOFBmw0D8jN8vrS+u8HJJaOhMsts095rvzLi2Abtpgx4Zj2gqXvgdXlRIZxm7UavUjPGQt2iG3mApUVGNMaea3W7DvMYXSR4elGmzLlrcNo41lxE=",
+    "name": "complete_task",
+    "arguments": "{\"summary\":\"Configured @widget[money_trend_line_chart] as a line chart mapping @field[disputes.closed::month] to the x-axis and the sum of @field[disputes.kept] and @field[disputes.refunded] to the y-axis, with an appropriate title.\",\"artifacts\":[{\"type\":\"widget\",\"id\":\"money_trend_line_chart\",\"description\":\"Configured line chart showing money kept and refunded by month the dispute closed.\"}]}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 19919,
+   "outputTokens": 122,
+   "totalTokens": 20041
+  }
+ }
+}

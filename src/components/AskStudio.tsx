@@ -197,7 +197,7 @@ export default function AskStudio() {
         <h1 className="text-2xl font-semibold tracking-tight">Ask your disputes</h1>
         <p className="text-sm text-muted">
           Ask a question in plain English and the AI analyst builds the answer as a live dashboard: charts, KPIs and grids that cross-filter each other. Built with AG Studio, the AG Grid dashboard
-          component, whose agent framework is driven here by Gemini. Edit any widget by hand, or ask for a change.
+          component, whose agent framework is driven here by Gemini. Edit any widget by hand, or ask for a change. The four suggested questions replay a saved real Gemini run, so they finish in seconds; anything else you ask runs live and takes a few minutes on the free Gemini tier.
         </p>
       </div>
       {/* Wider than the app's column: the canvas needs the room next to the AI and Compose panels. */}

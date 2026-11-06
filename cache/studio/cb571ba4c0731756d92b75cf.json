@@ -1,0 +1,32 @@
+{
+ "key": "cb571ba4c0731756d92b75cf",
+ "saved_at": "2026-11-06T13:06:23.081Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4znap5_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_2175087041317751813~EmAKXgFpFH0TbOTixpTSzh+NPhpfsU7BYa5rCQDNg4h92Yh7p43v9i/KBTKRv5MR5F4coR5lz5Llfj5UaHAAIO7KjVTFYXOr80OK4ebmWpelEUDc5tvduXlCy7cxLBUWj7M=",
+    "name": "rename_thread",
+    "arguments": "{\"name\":\"AI Decision Money Kept vs Refunded\"}",
+    "status": "completed"
+   },
+   {
+    "id": "st_mw4znap5_2",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_2175087041317751764",
+    "name": "view_report",
+    "arguments": "{}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4373,
+   "outputTokens": 33,
+   "totalTokens": 4406
+  }
+ }
+}

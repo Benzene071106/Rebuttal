@@ -1,0 +1,23 @@
+{
+ "key": "ba7ef1853c2dd2a4637dd392",
+ "saved_at": "2026-11-06T13:00:49.206Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zg52u_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_14692842113804717728~EmAKXgFpFH0T8pQrZPXCOfJ80PU/h/iqc0YvfNfeCJe9S3RNJVSPjrueQuKwl8cTTVgh3WRuDeDMCdkmIbHBiZ8pm6vW9RjQbbjFpW98vdbQ55n3FShYVGgE4XXM6AWu8k4=",
+    "name": "update_plan",
+    "arguments": "{\"widgetUpdates\":[{\"status\":\"placed\",\"id\":\"autopilot_comparison_chart\"},{\"status\":\"placed\",\"id\":\"autopilot_comparison_table\"}]}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 5089,
+   "outputTokens": 48,
+   "totalTokens": 5137
+  }
+ }
+}

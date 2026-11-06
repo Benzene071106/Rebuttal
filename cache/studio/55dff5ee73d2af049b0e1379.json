@@ -1,0 +1,23 @@
+{
+ "key": "55dff5ee73d2af049b0e1379",
+ "saved_at": "2026-11-06T13:02:28.323Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zi9k3_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_17850654599677231872~EmAKXgFpFH0TEvfWzuJv+DxznOl5RkGyRLJwJXaApIz3nhlwPofi9x4mgILOltQUMP/5DQ6UtINHRoyqHJnOvaudOLyRVIBG4gpk8WDucXfjW1W51OSSBci73Aaci3OeyXw=",
+    "name": "configure_widget",
+    "arguments": "{\"op\":\"patch\",\"widgetId\":\"autopilot_comparison_chart\",\"value\":{\"format\":{\"caption\":{\"text\":\"Disputes by Answered By\",\"enabled\":false},\"title\":{\"text\":\"Disputes by Answered By\",\"enabled\":true}},\"dataMapping\":{\"categoryKey\":[{\"id\":\"disputes.answered_by\"}],\"valueKey\":[{\"id\":\"disputes.dispute_id\",\"aggregation\":\"count\"},{\"id\":\"disputes.kept\",\"aggregation\":\"sum\"},{\"id\":\"disputes.refunded\",\"aggregation\":\"sum\"}]},\"type\":\"column-chart-grouped\",\"style\":{\"common\":{\"legend\":{\"position\":\"top\",\"enabled\":true}}}}}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 19001,
+   "outputTokens": 163,
+   "totalTokens": 19164
+  }
+ }
+}

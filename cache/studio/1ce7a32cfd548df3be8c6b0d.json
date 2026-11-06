@@ -1,0 +1,23 @@
+{
+ "key": "1ce7a32cfd548df3be8c6b0d",
+ "saved_at": "2026-11-06T13:04:55.835Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zlfdn_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_16472939385779269893~EmAKXgFpFH0TuUCA0tIcSSC15ip/3RqUE0ZeG6jAMV0LX+yqsdefQ34HC+DAjhXnpfa0arrgrFiv4LFCl4oxHIGLnPv0ktBVbYLctBqx5/cLaQaLIZJNqu57vkFAQ6xpWqk=",
+    "name": "complete_task",
+    "arguments": "{\"artifacts\":[{\"description\":\"Line chart widget added to page-1 for money kept and refunded by closed month.\",\"type\":\"widget\",\"id\":\"money_trend_line_chart\"}],\"summary\":\"Successfully added a new line-chart widget (@widget[money_trend_line_chart]) to page-1 (at columns 0-24, rows 24-42) to track money kept and refunded by closed month.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 13299,
+   "outputTokens": 108,
+   "totalTokens": 13407
+  }
+ }
+}

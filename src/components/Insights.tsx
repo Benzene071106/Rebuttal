@@ -13,6 +13,7 @@ import { gridTheme } from "./grid";
 import { useGridEnterprise } from "./gridEnterprise";
 import IncidentsPanel from "./IncidentsPanel";
 import InboxCharts from "./InboxCharts";
+import ScaleTest from "./ScaleTest";
 import { Badge, BUTTON, Card, Kpi } from "./ui";
 
 const decisionOf = (c?: CaseRecord) => {
@@ -303,6 +304,8 @@ export default function Insights() {
           suppressCellFocus
         />
       </Card>
+
+      <ScaleTest />
 
       <IncidentsPanel mode={data?.mode} refreshKey={(data?.cases ?? []).map((c) => c.updated_at).join("|")} />
 

@@ -145,7 +145,7 @@ function toolConfig(choice: StudioTurnRequest["toolChoice"]) {
 
 type GenerateClient = { models: { generateContent(params: any): Promise<GenerateContentResponse> } };
 
-export async function runStudioTurn(req: StudioTurnRequest, opts: { client?: GenerateClient; models?: string[] } = {}) {
+export async function runStudioTurn(req: StudioTurnRequest, opts: { client?: GenerateClient; models?: string[]; retryDelaysMs?: number[] } = {}) {
   const client = opts.client ?? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   // Flash-lite answers fastest on the free tier and handles Studio's tools; a model that is
   // rate limited or slow is skipped quickly, because one dashboard takes several turns.
@@ -173,7 +173,7 @@ export async function runStudioTurn(req: StudioTurnRequest, opts: { client?: Gen
               abortSignal: AbortSignal.timeout(45_000),
             },
           }),
-        [], // no waiting here: the next model is the retry
+        opts.retryDelaysMs ?? [], // normally no waiting here: the next model is the retry
       );
       const output = fromGemini(res, () => `st_${Date.now().toString(36)}_${++seq}`, new Map(tools.map((t) => [t.name, t.parameters])));
       // Flash-lite now and then answers with nothing at all, which Studio would take as

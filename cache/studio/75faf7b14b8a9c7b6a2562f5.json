@@ -1,0 +1,23 @@
+{
+ "key": "75faf7b14b8a9c7b6a2562f5",
+ "saved_at": "2026-11-06T13:02:08.317Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zhu4c_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_10688678821117610011~EmAKXgFpFH0T+lbiubeRFdBjvpHX+PK5twlUmjc0/VBLKYTECYF4EurbY/2LKuWAY2tgyE2URH1PJO7O9iup2Ye5y71KjaJQE9ZRydlC7bRu53SzEKjFwGEZSCqouZBmqEE=",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"widgetId\":\"autopilot_comparison_chart\",\"widgetType\":\"column-chart-grouped\",\"id\":\"widget\",\"pageId\":\"page-1\"},\"instructions\":\"Enable the legend on this grouped column chart. This is a modify.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 7256,
+   "outputTokens": 69,
+   "totalTokens": 7325
+  }
+ }
+}

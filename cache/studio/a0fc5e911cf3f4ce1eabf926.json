@@ -1,0 +1,28 @@
+{
+ "key": "a0fc5e911cf3f4ce1eabf926",
+ "saved_at": "2026-11-06T12:59:27.074Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zedpe_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I have added the requested widgets to your dashboard:\n\n- **Total Refunded KPI** (@widget[total_refunded_kpi]): Displays the total amount of money refunded.\n- **Refunds by Claim Type Bar Chart** (@widget[bar_chart_refunded_by_claim]): A horizontal grouped bar chart showing the breakdown of money refunded across different claim types, sorted from highest to lowest.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 6485,
+   "outputTokens": 84,
+   "totalTokens": 6569
+  }
+ }
+}

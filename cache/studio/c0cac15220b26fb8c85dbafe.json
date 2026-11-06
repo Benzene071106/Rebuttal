@@ -1,0 +1,32 @@
+{
+ "key": "c0cac15220b26fb8c85dbafe",
+ "saved_at": "2026-11-06T13:04:31.959Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zkwyf_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_14051866835590206152~EmAKXgFpFH0TVfGtWh0+Y1Y1K4UEkG7iEdUHj/rJQZGM2Adf/ZcwS79bcCOxrSgZuUkBtEG1NyR/LkSUVlobLKQZ3L8B+9i7xmR+h/RGYjwl+/ZQ/t9Pt13SxWsAUpGvCCg=",
+    "name": "rename_thread",
+    "arguments": "{\"name\":\"Money Kept and Refunded by Month\"}",
+    "status": "completed"
+   },
+   {
+    "id": "st_mw4zkwyf_2",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_14051866835590206511",
+    "name": "view_report",
+    "arguments": "{}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4362,
+   "outputTokens": 33,
+   "totalTokens": 4395
+  }
+ }
+}

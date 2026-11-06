@@ -1,0 +1,23 @@
+{
+ "key": "83f7733eb6a30d365d4f7743",
+ "saved_at": "2026-11-06T12:59:55.373Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zezjh_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_6052100580529968654~EmAKXgFpFH0TCxIlk+sWgNIrkklK+jMujeutRBWG+jQ3Xw4Kl6RvTGfARqNBM0m5YInaBI1H53w0n5NmrOZxsJEIGMrZp2ysMEBEQWBKnDtNgNN1ZPkBZnDqDFvsEyOOhNI=",
+    "name": "delegate_to",
+    "arguments": "{\"instructions\":\"Create a 2-widget layout comparing disputes answered by autopilot vs manual: a grouped column chart and a data table.\",\"type\":{\"id\":\"page\"}}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4987,
+   "outputTokens": 45,
+   "totalTokens": 5032
+  }
+ }
+}

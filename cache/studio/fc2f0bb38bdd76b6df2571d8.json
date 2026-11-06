@@ -1,0 +1,23 @@
+{
+ "key": "fc2f0bb38bdd76b6df2571d8",
+ "saved_at": "2026-11-06T13:07:21.304Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zojmg_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_12122676829431329570~EmAKXgFpFH0TKNik/q5Xqeu504Hcp3b9sLY78LeBI1GsOhIKZAwVZgvZqrb5ZX7dehyNZ/ffW6M4UuwY7GFkG33mBvHri4fo3IrBXR04D73Ti2gargScwYhdcm3qjuM7dKQ=",
+    "name": "complete_task",
+    "arguments": "{\"artifacts\":[{\"type\":\"widget\",\"id\":\"stacked_column_chart\",\"description\":\"Configured stacked column chart showing Kept vs Refunded money by AI decision\"}],\"summary\":\"Configured the stacked column chart widget to display Kept vs Refunded money broken down by AI decision, complete with a title and proper series mapping.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 20986,
+   "outputTokens": 84,
+   "totalTokens": 21070
+  }
+ }
+}

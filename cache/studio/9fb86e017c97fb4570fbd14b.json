@@ -1,0 +1,23 @@
+{
+ "key": "9fb86e017c97fb4570fbd14b",
+ "saved_at": "2026-11-06T13:04:45.450Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zl7d6_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_9971974441180979567~EmAKXgFpFH0TE7+57Lg2OTs0LmHYcKEj5ePeMlgU9ikMLXhu5x+VWMvSv7d4l6PpwGI+idAk0VJY4v6FMe1Ffc0mH25jEcA+azt21ESvJ83TKEk4uZ9XChn8muPUVSILdag=",
+    "name": "add_widget",
+    "arguments": "{\"widgetId\":\"money_trend_line_chart\",\"yTrack\":24,\"xSpan\":24,\"ySpan\":18,\"xTrack\":0,\"type\":\"line-chart\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 11989,
+   "outputTokens": 35,
+   "totalTokens": 12024
+  }
+ }
+}

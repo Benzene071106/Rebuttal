@@ -1,0 +1,28 @@
+{
+ "key": "fa41b04953753e9b7f853206",
+ "saved_at": "2026-11-06T13:05:45.137Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zmhf4_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I have added a line chart to the dashboard showing money kept and refunded by month the dispute closed.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 5095,
+   "outputTokens": 20,
+   "totalTokens": 5115
+  }
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "key": "62aa4dedf117d638b02d9102",
+ "saved_at": "2026-11-06T13:07:30.898Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zor0y_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_7332393942824652995~EmAKXgFpFH0TCdojnIHDz/76IO/Ko12Vuc6WZHu8+rllqafNuyOH5q9gvFXlVSP0MoLkefMlKHndTTOTB3hd0efcxHZEckOEfViBN/932KNOjdcoCMfNatgk12/FRONaiTc=",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"widgetType\":\"column-chart-stacked\",\"widgetId\":\"stacked_column_chart\",\"id\":\"widget\",\"pageId\":\"page-1\"},\"instructions\":\"Enable the legend on stacked_column_chart so viewers can distinguish between the kept and refunded series. This is a modify.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 6785,
+   "outputTokens": 79,
+   "totalTokens": 6864
+  }
+ }
+}

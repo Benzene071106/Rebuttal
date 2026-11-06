@@ -1,0 +1,23 @@
+{
+ "key": "29dbd64a6edd37ce17b401e6",
+ "saved_at": "2026-11-06T13:01:39.476Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zh7v8_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_7787364023550077019~EmAKXgFpFH0TAT8lBUFoocjSSI/zhoPX/jpK+6e/ZcpTldruyyfuumrAUAopHCI5hlmWEdCQmXpM0Eu/GsQtD66ixYlTTBCZ0Ec+bY0Vsjyiob10Qpas7JHDWFCeRYOPcY4=",
+    "name": "configure_widget",
+    "arguments": "{\"op\":\"patch\",\"widgetId\":\"autopilot_comparison_chart\",\"value\":{\"type\":\"column-chart-grouped\",\"format\":{\"caption\":{\"enabled\":false,\"text\":\"Disputes by Answered By\"},\"title\":{\"text\":\"Disputes by Answered By\",\"enabled\":true}},\"style\":{\"theme\":{\"common\":{\"legend\":{\"enabled\":true,\"position\":\"bottom\"}}}}}}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 17673,
+   "outputTokens": 95,
+   "totalTokens": 17768
+  }
+ }
+}

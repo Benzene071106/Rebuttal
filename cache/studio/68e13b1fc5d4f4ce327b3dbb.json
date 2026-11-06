@@ -1,0 +1,28 @@
+{
+ "key": "68e13b1fc5d4f4ce327b3dbb",
+ "saved_at": "2026-11-06T13:02:42.975Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw4zikv3_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I have created a dashboard comparing disputes handled by Autopilot versus those answered manually:\n\n- **Disputes by Answered By (@widget[autopilot_comparison_chart])**: A grouped column chart comparing dispute counts, money kept, and money refunded across handling methods, complete with a legend and clear axis labels.\n- **Dispute Performance Table (@widget[autopilot_comparison_table])**: A data grid breaking down counts, total money kept, and total money refunded by who handled the dispute.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 7361,
+   "outputTokens": 102,
+   "totalTokens": 7463
+  }
+ }
+}
