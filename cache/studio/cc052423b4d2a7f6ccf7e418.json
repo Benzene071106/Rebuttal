@@ -1,0 +1,23 @@
+{
+ "key": "cc052423b4d2a7f6ccf7e418",
+ "saved_at": "2026-11-06T13:45:53.413Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw5123no_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_15881107151940725949~EmAKXgFpFH0TFwiGR8oaZvPMXLiWNqAPHb0gZCaDdkOVbsWS71aGswPTxD+MX90Z8g4MuG4FmRexz295F+NMq9u9CuHLmehG7pO1QwWX4BnC9JV2ZIdNPM8KGjDgJ3oRMIU=",
+    "name": "configure_widget",
+    "arguments": "{\"value\":{\"type\":\"bar-chart-grouped\",\"sort\":[{\"direction\":\"desc\",\"field\":{\"aggregation\":\"sum\",\"id\":\"disputes.refunded\"}}],\"format\":{\"caption\":{\"enabled\":true,\"text\":\"Money Refunded by Claim Type\"}},\"dataMapping\":{\"categoryKey\":[{\"id\":\"disputes.claim\"}],\"valueKey\":[{\"aggregation\":\"sum\",\"id\":\"disputes.refunded\"}]}},\"widgetId\":\"bar_refund_claim\",\"op\":\"patch\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 17238,
+   "outputTokens": 122,
+   "totalTokens": 17360
+  }
+ }
+}

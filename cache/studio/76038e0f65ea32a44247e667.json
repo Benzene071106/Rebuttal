@@ -1,0 +1,23 @@
+{
+ "key": "76038e0f65ea32a44247e667",
+ "saved_at": "2026-11-06T13:53:56.575Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51cggv_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_12722670890083681119~EmAKXgFpFH0Tgh9EFNsN69W6jY+jGC2hJy126iQFFswr2JgxC1dUJn55hm0fshrk9hIsDoQmRVs0Bqs4XE8HwJuwaNua0zTrHzm+ZQ0Yc8ubv9+HJXb56IwYzVvn1Kvnfbk=",
+    "name": "configure_widget",
+    "arguments": "{\"value\":{\"dataMapping\":{\"valueKey\":[{\"id\":\"disputes.kept\",\"aggregation\":\"sum\"},{\"id\":\"disputes.refunded\",\"aggregation\":\"sum\"}],\"categoryKey\":[{\"id\":\"disputes.closed::month\"}]},\"format\":{\"caption\":{\"enabled\":false},\"title\":{\"text\":\"Money Kept and Refunded by Close Month\",\"enabled\":true}},\"type\":\"line-chart\"},\"widgetId\":\"money_kept_refunded_line_chart\",\"op\":\"patch\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 17330,
+   "outputTokens": 123,
+   "totalTokens": 17453
+  }
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "key": "8ea9291a1faccf7713127267",
+ "saved_at": "2026-11-06T13:50:15.856Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw517q5s_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_3736904404436648440~EmAKXgFpFH0TS8PePgRM8AS8L58zM3dlaCAMLodB/fBPCmytgx63/DGr4zeE7CcScsVoENHr4EQjIs7nSg5qXqUUz+4GxGhmNhJ3/tDuTSXqLK09ugG7B/53h26CbA/6Ueg=",
+    "name": "complete_task",
+    "arguments": "{\"summary\":\"Configured the stacked bar chart widget to display the sum of kept and refunded amounts broken down by AI decision, with the title 'Money Kept vs Refunded by AI Decision'.\",\"artifacts\":[{\"type\":\"widget\",\"description\":\"Configured stacked bar chart showing kept vs refunded amounts by AI decision\",\"id\":\"stacked_bar_chart\"}]}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 19642,
+   "outputTokens": 88,
+   "totalTokens": 19730
+  }
+ }
+}

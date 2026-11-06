@@ -1,0 +1,23 @@
+{
+ "key": "7df2950a72ffb39f5ee53d0c",
+ "saved_at": "2026-11-06T13:54:41.255Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51dexy_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_17999313833989752016~EmAKXgFpFH0Tq5w1f8YxAh+ecBdiwRTp/9U8uTLMlYCFdXixvjsAM+MUPiIHg7zQ4+wHkF5Xwl1ggGBw2AHoMZ4R4bR2eeDqaTTySKfLHOMsKFWW5C2vUr73pD3IG4MXqcw=",
+    "name": "view_widget",
+    "arguments": "{\"widgetId\":\"money_kept_refunded_line_chart\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 18488,
+   "outputTokens": 26,
+   "totalTokens": 18514
+  }
+ }
+}

@@ -37,6 +37,13 @@ export type StudioOutputItem =
 const SIG_SEP = "~";
 const NO_SIGNATURE = "skip_thought_signature_validator";
 
+export const STUDIO_RULES = [
+  "Rules for this dashboard:",
+  "- Read the page first. Never add a widget that shows the same measure as an existing one, and never remove or replace existing widgets unless the user asks.",
+  "- Only call update_plan or clear_plan after the Planning agent has created a plan. For one or two widgets, skip planning and delegate directly.",
+  "- When you call delegate_to, set type to an object whose id is one of the agent ids listed in the tool's schema, exactly as written.",
+].join("\n");
+
 export function toGemini(req: StudioTurnRequest): { system: string; contents: Content[] } {
   const system: string[] = [];
   if (req.instructions) system.push(req.instructions);
@@ -76,6 +83,10 @@ export function toGemini(req: StudioTurnRequest): { system: string; contents: Co
       push("user", { functionResponse: { id: item.callId.split(SIG_SEP)[0], name: names.get(item.callId) ?? "tool", response: { output: value } } });
     }
   }
+  // House rules for AG Studio's agents on this page, learned from runs where Gemini
+  // repeated a KPI the dashboard already had, called update_plan before any plan existed,
+  // or delegated to an agent that isn't offered.
+  if (req.tools?.length) system.push(STUDIO_RULES);
   if (req.responseFormat?.type === "json" && req.tools?.length) {
     system.push(`When you give your final answer, reply with JSON only, matching this schema (${req.responseFormat.name}): ${JSON.stringify(req.responseFormat.schema)}`);
   }

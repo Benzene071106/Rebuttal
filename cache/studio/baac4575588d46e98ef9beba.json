@@ -1,0 +1,23 @@
+{
+ "key": "baac4575588d46e98ef9beba",
+ "saved_at": "2026-11-06T13:46:53.089Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw513dpd_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_18218576241546665011~EmAKXgFpFH0TqXyJbTcF24bBleV6hBuhPjIZSKkkyoLNaoP1DAxxtXpfScAhUm81D0boiZr8lRrJI9SzOt5nskgV7TEmz9YZMViePbvz+GTCaOsULE/Z2az6ZtRpB5zon+8=",
+    "name": "add_widget",
+    "arguments": "{\"ySpan\":14,\"widgetId\":\"disputes_grid\",\"xTrack\":0,\"yTrack\":24,\"type\":\"grid\",\"xSpan\":24}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 12107,
+   "outputTokens": 49,
+   "totalTokens": 12156
+  }
+ }
+}

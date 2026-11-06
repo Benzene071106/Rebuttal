@@ -1,0 +1,23 @@
+{
+ "key": "fb7a9b682ff809d61371f174",
+ "saved_at": "2026-11-06T13:46:48.000Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw5139s0_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_15003663501090888966~EmAKXgFpFH0T5MVrdA61Gg7j07P1TS+ScvF10ICdJNar5Vc3Q/BCtbF0KaeVu0ipNuYbrz0cDLjkh5Gc5GEMFNbOK0fXxlOWiRf8uFOSVwZZmbFZ6RkNeN+tNVmK20SnZnQ=",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"pageId\":\"page-1\",\"id\":\"page\"},\"instructions\":\"Place a pivot-grid or grid widget below the existing widgets (starting at yTrack 24) spanning all 24 columns with height 14.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 5729,
+   "outputTokens": 65,
+   "totalTokens": 5794
+  }
+ }
+}

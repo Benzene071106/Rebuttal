@@ -1,0 +1,23 @@
+{
+ "key": "05ab9e55440a1cc19d4b80eb",
+ "saved_at": "2026-11-06T13:54:46.526Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51dj0e_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_17410436774493620857~EmAKXgFpFH0TwguHVznFcRYnenAfil+snZzgHv97XYcJjcrnQ6ugooaFGUvgRO25WVTonED3JcDCmGO4vKq4s0yRFbq9P3Icc5zVyPW6h/cF6r7xOZtOu7OvS7Ss+jxiGGk=",
+    "name": "configure_widget",
+    "arguments": "{\"value\":{\"format\":{\"title\":{\"enabled\":true,\"text\":\"Money Kept and Refunded by Close Month\"}},\"type\":\"line-chart\",\"style\":{\"common\":{\"legend\":{\"enabled\":true}}}},\"widgetId\":\"money_kept_refunded_line_chart\",\"op\":\"patch\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 18997,
+   "outputTokens": 74,
+   "totalTokens": 19071
+  }
+ }
+}

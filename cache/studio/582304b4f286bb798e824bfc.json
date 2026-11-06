@@ -1,0 +1,23 @@
+{
+ "key": "582304b4f286bb798e824bfc",
+ "saved_at": "2026-11-06T13:45:43.845Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw511w9x_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_8888578644437392824~EmAKXgFpFH0TwdgBYgw9oIaWGfAXXVZzN5zqhgTPvsBb93oZfZKcy7pbnwTcn8JsodQn3iKXBJj+sZAE6ewELvcfjS9y/IBOoaNgq/J9ISXYMwrhP1mIWqocxi2V+T+09+s=",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"pageId\":\"page-1\",\"id\":\"widget\",\"widgetId\":\"bar_refund_claim\",\"widgetType\":\"bar-chart-grouped\"},\"instructions\":\"Configure this as a horizontal bar chart showing money refunded by claim type. Map claim type to the category axis and money refunded to the value axis, sorted descending by refund amount.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4804,
+   "outputTokens": 89,
+   "totalTokens": 4893
+  }
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "key": "664c875aa248e29a8f406ca5",
+ "saved_at": "2026-11-06T13:47:18.025Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw513wy0_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_10884662502396706531~EmAKXgFpFH0TxYw7Rk9iklhIQOrNrFlNQIunPSD4qQgs5fOejaTn6DHRzKa8j7CbLllboxbLQ4QGpxEuT/m5bYI2VVHat0Xdo1nL4GS0RnMCYhKiSsx6Gyo0HI+7/cgYKsk=",
+    "name": "configure_widget",
+    "arguments": "{\"value\":{\"type\":\"grid\",\"dataMapping\":{\"cols\":[{\"id\":\"disputes.answered_by\"},{\"id\":\"disputes.dispute_id\",\"aggregation\":\"count\"},{\"aggregation\":\"sum\",\"id\":\"disputes.kept\"},{\"aggregation\":\"sum\",\"id\":\"disputes.refunded\"}]},\"format\":{\"style\":{\"grandTotalRow\":{\"enabled\":true}},\"title\":{\"text\":\"Disputes by Answered By\",\"enabled\":true}}},\"widgetId\":\"disputes_grid\",\"op\":\"patch\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 12135,
+   "outputTokens": 129,
+   "totalTokens": 12264
+  }
+ }
+}

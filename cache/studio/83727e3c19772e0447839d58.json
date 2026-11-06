@@ -1,0 +1,23 @@
+{
+ "key": "83727e3c19772e0447839d58",
+ "saved_at": "2026-11-06T13:45:28.126Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw511k5a_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_4013048093237524265~EmAKXgFpFH0TFsQWOZ4SsPo6cew+s8819P2Ky2vjUaHmJgE+Gojc4R3Cr8CpAP7S9vMs46u0LsKrh/ynQiU1WXxnZhJf9rpRa9znFS917uoWh56roC2w1r/RTv6U+2a0D88=",
+    "name": "add_widget",
+    "arguments": "{\"xSpan\":24,\"type\":\"bar-chart-grouped\",\"yTrack\":24,\"xTrack\":0,\"ySpan\":18,\"widgetId\":\"bar_refund_claim\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 12059,
+   "outputTokens": 54,
+   "totalTokens": 12113
+  }
+ }
+}

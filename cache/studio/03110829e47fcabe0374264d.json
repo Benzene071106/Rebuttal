@@ -1,0 +1,28 @@
+{
+ "key": "03110829e47fcabe0374264d",
+ "saved_at": "2026-11-06T13:47:40.653Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw514eel_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I have added a new comparison table below your existing dashboard widgets (`@widget[disputes_grid]`). It breaks down disputes answered by autopilot versus manual answers, detailing the number of disputes, money kept, and money refunded. All existing widgets have been kept intact.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 7212,
+   "outputTokens": 54,
+   "totalTokens": 7266
+  }
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "key": "2f4fe012973545a5b0e1eeba",
+ "saved_at": "2026-11-06T13:48:25.171Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw515cr7_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_16004759022028808911~EmAKXgFpFH0T64XtwpInPPzjU2viWdJmDQ6+2uyYH7eBJRWHSwBcWLw709E4Q9HYWul1YDtLaCGIYbGYdDGZxSJi1HrMIANyVdIS+4vk4uUJaSFDbUwDVSK8SUU6Bsj/o8U=",
+    "name": "complete_task",
+    "arguments": "{\"artifacts\":[{\"type\":\"widget\",\"id\":\"stacked_bar_chart\",\"description\":\"Added stacked bar chart widget stacked_bar_chart at y=24 with height 18 and full width 24 on page-1\"}],\"summary\":\"Successfully placed the new stacked bar chart (@widget[stacked_bar_chart]) on page-1 at y=24 with a width of 24 tracks and height of 18 tracks, fitting cleanly below the existing layout.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 13405,
+   "outputTokens": 117,
+   "totalTokens": 13522
+  }
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "key": "6d9ab6e10d1168d29294b107",
+ "saved_at": "2026-11-06T13:50:26.466Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw517yci_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I have successfully added a new stacked bar chart below the existing widgets titled **\"Money Kept vs Refunded by AI Decision\"** (@widget[stacked_bar_chart]). It displays a breakdown of money kept versus refunded for each AI decision category while keeping all existing widgets intact.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 9922,
+   "outputTokens": 57,
+   "totalTokens": 9979
+  }
+ }
+}

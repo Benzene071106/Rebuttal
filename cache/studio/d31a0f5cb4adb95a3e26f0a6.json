@@ -1,0 +1,23 @@
+{
+ "key": "d31a0f5cb4adb95a3e26f0a6",
+ "saved_at": "2026-11-06T13:47:31.235Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51474y_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_90466797679255296~EmAKXgFpFH0TyLL3Ttm/DaDIxJQCw0dNC/pgAQ6C7gKh+eIVTtHB3iOpHWq++RdNT3mZUevNUm3pvJlwBZ8ilTLEDCX17XluYnztb9bPSPLkJZbWnAldKXX/9OSCtT30AJo=",
+    "name": "complete_task",
+    "arguments": "{\"summary\":\"Configured @widget[disputes_grid] as a table comparing disputes answered by autopilot vs manual answers, showing number of disputes, money kept, and money refunded.\",\"artifacts\":[{\"description\":\"Configured grid widget comparing disputes answered by autopilot versus manual answers\",\"id\":\"disputes_grid\",\"type\":\"widget\"}]}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 12842,
+   "outputTokens": 84,
+   "totalTokens": 12926
+  }
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "key": "cd1f70a655a30b20e45ca680",
+ "saved_at": "2026-11-06T13:53:08.336Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51bf8w_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_3182970182477191529~EmAKXgFpFH0TdUHvCCx1pTTKqj9Cn4+ZmuS2PMtHz+Tr/ki79kTppifiWg5uqT3sfkI7M65jJS4WRl1d3KCpnjGYi0gmLMkRb/PrF5b+Hz/T3MPlwLwumwPrvfkHzaaRPFY=",
+    "name": "rename_thread",
+    "arguments": "{\"name\":\"Dispute Money Over Time\"}",
+    "status": "completed"
+   },
+   {
+    "id": "st_mw51bf8w_2",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_3182970182477192432",
+    "name": "view_schema",
+    "arguments": "{}",
+    "status": "completed"
+   },
+   {
+    "id": "st_mw51bf8w_3",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_3182970182477189239",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"id\":\"page\"},\"instructions\":\"Place a new line chart below the existing widgets to show money kept and refunded by dispute close month.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4588,
+   "outputTokens": 73,
+   "totalTokens": 4661
+  }
+ }
+}

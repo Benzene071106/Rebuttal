@@ -19,6 +19,9 @@ const PATTERNS: Array<[RegExp, string]> = [
   [/st_[a-z0-9]+_\d+(~[A-Za-z0-9+/=_-]+)?/g, "<call>"],
   [/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, "<time>"],
   [/\b1[6-9]\d{11}\b/g, "<ms>"],
+  // The simulator dates its disputes relative to today, so counts, dates and sums the
+  // agents read back change from day to day. Numbers are left out of the key.
+  [/\d+/g, "#"],
 ];
 
 function strings(v: unknown): unknown {

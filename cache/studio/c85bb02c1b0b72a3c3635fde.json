@@ -1,0 +1,23 @@
+{
+ "key": "c85bb02c1b0b72a3c3635fde",
+ "saved_at": "2026-11-06T13:48:30.031Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw515gi7_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_10710199732259275608~EmAKXgFpFH0T9HtcDjE0OBKE/znlGiuH6VUl4/O2NnkzBERKwLvX+hk+n1WZMGRBGLjF705SJJbxkqmWNUu8zuIrfoH3XW9iwQvxsCjYrqgTPUH9pOdHYcVdCcDLVz2xpcA=",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"id\":\"widget\",\"widgetId\":\"stacked_bar_chart\",\"pageId\":\"page-1\",\"widgetType\":\"bar-chart-stacked\"},\"instructions\":\"Configure this widget as a stacked bar chart showing money kept vs refunded for each AI decision. Map AI decision to the category/grouping axis, and amount kept and amount refunded as the two metric series. Set an appropriate title like 'Money Kept vs Refunded by AI Decision'.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 5873,
+   "outputTokens": 111,
+   "totalTokens": 5984
+  }
+ }
+}

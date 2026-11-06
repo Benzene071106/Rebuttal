@@ -1,0 +1,23 @@
+{
+ "key": "fa831eff08f06202b0eeacb2",
+ "saved_at": "2026-11-06T13:48:10.120Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw515154_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_6221042461557223195~EmAKXgFpFH0TM/DXVSn3xw1BvYXEfIOcZfFto+GgXI4PlSbVO3KwCiELn3JjHYKBFh6qXLo3LE6ktnDLmq7cwqGFE2wvbPPWNcXxN+gWt89mPaQR578jMb30pzEXCjhIxJk=",
+    "name": "delegate_to",
+    "arguments": "{\"type\":{\"id\":\"page\",\"pageId\":\"page-1\"},\"instructions\":\"Place a new stacked bar chart below the existing widgets at y=24 with height 18 and full width 24.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 5739,
+   "outputTokens": 59,
+   "totalTokens": 5798
+  }
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "key": "84b2190766e2b5a97210d970",
+ "saved_at": "2026-11-06T13:54:36.056Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51daxk_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_2436048833443758109~EmAKXgFpFH0T+7liXwdJKcZTed4hvMKpKJTwmHv+tKfCv6aqIy91/hIbqhPzykpielAv4PFOrdCjJf5klkBfXDegZVtQf2aAFEHOVsUx0CWMPSbXMvcGDErqZKgzBz0Apa4=",
+    "name": "configure_widget",
+    "arguments": "{\"widgetId\":\"money_kept_refunded_line_chart\",\"value\":{\"type\":\"line-chart\",\"style\":{\"common\":{\"legend\":{\"position\":\"bottom\",\"enabled\":true}}}},\"op\":\"patch\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 17830,
+   "outputTokens": 58,
+   "totalTokens": 17888
+  }
+ }
+}

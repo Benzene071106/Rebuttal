@@ -1,0 +1,23 @@
+{
+ "key": "8340215ee89275928725d37a",
+ "saved_at": "2026-11-06T13:45:23.343Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw511gge_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_5468126299959070745~EmAKXgFpFH0TO3X82W4djHkoAqmorpriD6rZF3xN6/KpvlleZfHE9PM0ql7Kj4e/46gOy8oZaQ4YmgM/N+WoDDJlVgXA+hi1auRU3leEqwB9Ng2Ns7VireXx0oq0Mppl3Vw=",
+    "name": "delegate_to",
+    "arguments": "{\"instructions\":\"Place a new horizontal bar chart widget on the page for money refunded by claim type.\",\"type\":{\"id\":\"page\"}}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4694,
+   "outputTokens": 40,
+   "totalTokens": 4734
+  }
+ }
+}

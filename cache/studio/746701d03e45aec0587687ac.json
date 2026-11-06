@@ -1,0 +1,28 @@
+{
+ "key": "746701d03e45aec0587687ac",
+ "saved_at": "2026-11-06T13:54:56.748Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51dqwc_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I have added a new line chart below your existing widgets titled **\"Money Kept and Refunded by Close Month\"**, which tracks both money kept and refunded over time by the month the dispute closed, complete with a legend for clarity.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 6939,
+   "outputTokens": 48,
+   "totalTokens": 6987
+  }
+ }
+}

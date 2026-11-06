@@ -1,0 +1,23 @@
+{
+ "key": "e9967c42aa40cc952a1a1c32",
+ "saved_at": "2026-11-06T13:53:24.287Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51brjy_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_17951320250496803159~EmAKXgFpFH0TO3bLHnflwAmn7zjGnPewqIXgPawmwfa/6t/j8dUMmMA+PXOLLABemHO5cn5Kd/3OAItl1GLpxLEwYZW2MheoswQ08wdTvH86ESHOV24vE7rOgraiaYeNok4=",
+    "name": "complete_task",
+    "arguments": "{\"artifacts\":[{\"id\":\"money_kept_refunded_line_chart\",\"description\":\"Added a new line chart @widget[money_kept_refunded_line_chart] below existing widgets to show money kept and refunded by dispute close month.\",\"type\":\"widget\"}],\"summary\":\"Successfully placed a new line chart @widget[money_kept_refunded_line_chart] spanning full width (24 columns) at row 24, positioned nicely below the existing stacked column chart and KPIs with no overlaps or layout issues.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 13393,
+   "outputTokens": 128,
+   "totalTokens": 13521
+  }
+ }
+}

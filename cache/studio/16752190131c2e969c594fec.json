@@ -1,0 +1,28 @@
+{
+ "key": "16752190131c2e969c594fec",
+ "saved_at": "2026-11-06T13:46:18.389Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw512mxh_1",
+    "kind": "output",
+    "type": "message",
+    "role": "assistant",
+    "status": "completed",
+    "content": [
+     {
+      "type": "text",
+      "text": "I've added a horizontal bar chart (@widget[bar_refund_claim]) showing total money refunded by claim type, ordered from highest to lowest refund amount, while keeping all existing widgets intact.",
+      "annotations": []
+     }
+    ]
+   }
+  ],
+  "usage": {
+   "inputTokens": 6198,
+   "outputTokens": 40,
+   "totalTokens": 6238
+  }
+ }
+}

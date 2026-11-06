@@ -1,0 +1,23 @@
+{
+ "key": "0a0dc3a82e3a2199f1de2ae6",
+ "saved_at": "2026-11-06T13:45:12.361Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw5117zd_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_17294519288259498601~EmAKXgFpFH0TVPj3J0ZwA4QYCP0fUuHdPKcsSiMsjuvNR2VwxhXWhvo2wwzDQde08W8MT3sBk+S5fwT/hBvsmB1ULG3X/kqRuwuRX90vY4rS7Hgr4SpHgHxtvLjPK2aiGBY=",
+    "name": "rename_thread",
+    "arguments": "{\"name\":\"Refunds by Claim Type\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 4481,
+   "outputTokens": 20,
+   "totalTokens": 4501
+  }
+ }
+}

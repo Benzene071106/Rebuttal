@@ -1,0 +1,23 @@
+{
+ "key": "9e32c3cdebf5ee5c0947d018",
+ "saved_at": "2026-11-06T13:53:29.253Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51bvdx_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_5349741065792524018~EmAKXgFpFH0ToxP4pS7Z+m33xQyc+XroTSo1jPkCYpqpFC77wNpcFi3I3Xv/qikCc+QZGFMgra91oLr2a4C1mpm/8+ywDI67bxKATXTu/Uoz4yYSRVd9aIDJAFZ9HB32Ni8=",
+    "name": "delegate_to",
+    "arguments": "{\"instructions\":\"Configure this line chart to show money kept and refunded by the month the dispute closed. Map the closed date field (bucketed by month) to the X-axis, and both the Kept and Refunded amount fields to the Y-axis/series. Title it \\\"Money Kept and Refunded by Close Month\\\".\",\"type\":{\"widgetId\":\"money_kept_refunded_line_chart\",\"id\":\"widget\",\"widgetType\":\"line-chart\",\"pageId\":\"page-1\"}}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 5214,
+   "outputTokens": 122,
+   "totalTokens": 5336
+  }
+ }
+}

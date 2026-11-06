@@ -1,0 +1,23 @@
+{
+ "key": "45c32e9b68215f928fbba4aa",
+ "saved_at": "2026-11-06T13:54:16.798Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51cw2m_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_3589470322328286993~ErsBCrgBAWkUfRMHAJ0Aet8XsY+IhswRMvtI0wyyNXWU5wVpj867m3hhhy7UaB1kTWVRK5oQRtJFFumFPCAUxDcUYU5v5O2aFg5RRBGE3ktOt9zlhVZRc9wHEoLmS+KO9E976qsl7xv1mtpx5DKLs2OFHWgCBMwbCRINKL3CpXF49MF6yfFmKNAkuQGAAhDn5B4K4PwlXSFoioRH8LiiRfwcUZqilGwBeiQfhOfrbuFvzZbURAnspNX5RVlUxA==",
+    "name": "complete_task",
+    "arguments": "{\"artifacts\":[{\"description\":\"Line chart showing money kept and refunded by close month\",\"id\":\"money_kept_refunded_line_chart\",\"type\":\"widget\"}],\"summary\":\"Configured the line chart @widget[money_kept_refunded_line_chart] with @field[disputes.closed::month] on the X-axis and summed sums of @field[disputes.kept] and @field[disputes.refunded] on the Y-axis, titled 'Money Kept and Refunded by Close Month'.\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 19565,
+   "outputTokens": 129,
+   "totalTokens": 19712
+  }
+ }
+}

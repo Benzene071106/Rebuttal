@@ -1,0 +1,23 @@
+{
+ "key": "99934e83842de1c607205f2a",
+ "saved_at": "2026-11-06T13:53:50.483Z",
+ "response": {
+  "model": "gemini-3.5-flash",
+  "output": [
+   {
+    "id": "st_mw51cbrm_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_4906600595805050279~EswBCskBAWkUfRNys02xmwxpYTMBFFsbUlZYM+LhNoI+j0x8NvtaCKMb5RKCyI9B8utDMBgRKh4rOJvzruzRHaW1VBdC1myvFska7pH6ncTntB1tfg2ErbgUp8yMfoY6Tg/FYBFEoUGJFzYF6oAYC3R8E/kHON4dqu2EqXGyM4Wx+J7DmIiro1JpOZ0uRseNZgsiM8dp+6hOmY6hkHkXMEHgDLSfp4SNeKkEzhcyCoMPL8wiP6l+V2xXla/t2xM+/wqcaPWm5MoMoH+Ay2lS",
+    "name": "view_schema",
+    "arguments": "{}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 16907,
+   "outputTokens": 10,
+   "totalTokens": 16939
+  }
+ }
+}

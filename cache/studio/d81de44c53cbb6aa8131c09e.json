@@ -1,0 +1,23 @@
+{
+ "key": "d81de44c53cbb6aa8131c09e",
+ "saved_at": "2026-11-06T13:54:06.971Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51cohm_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_10638269314980045029~Ev0CCvoCAWkUfRPQLqPbkQQoRFlS2zxzIycPPF+shpPH7DL/x7wKRdkEWVD4jDaZ3+YJDiROtvU2jBuXQbjpa+gDGD++jO7ACbXEaCesO0QVgUmvKKO4MYuVExwkFcm5QwlOfPiyeiHnEiisIH/egfcV5qog6dS98k7E++G1HUb4NyITKoSJIlTe0urqvCkBzLjOnI3G3puduvEDpoQxaZ9XURV9mywps5p56SCWv3wRIgPrZ7tq2rE7RHT5mhV0gSg7jgnGv9FuHiJk+5uBuSNJUYph/2HyCQPz++vMU9l+yB97aFMoikTTxGtjf9RKscCUjEnyn20/0J0XXSC/GNr8dhurCVVC/xeCk0rKTR3xwVGF4OYEsxVvI3ftuSjFMjvrk4qJsPD4a/Mq12gX36m6S8WhG5RcYnq2023s3rK9kLxFr6yyXEPRHDP+AFloGFfxfhA83UVZMAjXsHQQ1xX61SxHfCK377c+ywqOt6T7fyc6m6Mpf2q0y9LP462L",
+    "name": "configure_widget",
+    "arguments": "{\"widgetId\":\"money_kept_refunded_line_chart\",\"value\":{\"type\":\"line-chart\",\"format\":{\"title\":{\"text\":\"Money Kept and Refunded by Close Month\",\"enabled\":true},\"caption\":{\"enabled\":false}},\"dataMapping\":{\"categoryKey\":[{\"id\":\"disputes.closed::month\"}],\"valueKey\":[{\"aggregation\":\"sum\",\"id\":\"disputes.kept\"},{\"id\":\"disputes.refunded\",\"aggregation\":\"sum\"}]},\"style\":{\"common\":{\"legend\":{\"position\":\"bottom\",\"enabled\":true}}}},\"op\":\"patch\"}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 18233,
+   "outputTokens": 139,
+   "totalTokens": 18441
+  }
+ }
+}

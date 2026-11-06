@@ -1,0 +1,23 @@
+{
+ "key": "ab8485daffe24d0ee7590511",
+ "saved_at": "2026-11-06T13:54:26.225Z",
+ "response": {
+  "model": "gemini-3.5-flash-lite",
+  "output": [
+   {
+    "id": "st_mw51d3ch_1",
+    "kind": "output",
+    "type": "function_call",
+    "callId": "call_1805463253504618071~EmAKXgFpFH0THgQI8XCJaHXkkY3rZSiqlF2YMvFlGYwynJCC/UmjeTijcW1Y0U8tIOKvsDtzT7LJALjLxdYFX0L0NA+2PXX+i25BD7TKZe4otVFMvoKfntYMWbvvBDZWl4o=",
+    "name": "delegate_to",
+    "arguments": "{\"instructions\":\"Enable the legend on this line chart so viewers can distinguish between the Kept and Refunded series.\",\"type\":{\"widgetType\":\"line-chart\",\"pageId\":\"page-1\",\"widgetId\":\"money_kept_refunded_line_chart\",\"id\":\"widget\"}}",
+    "status": "completed"
+   }
+  ],
+  "usage": {
+   "inputTokens": 6821,
+   "outputTokens": 77,
+   "totalTokens": 6898
+  }
+ }
+}

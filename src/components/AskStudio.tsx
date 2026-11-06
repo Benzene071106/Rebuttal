@@ -115,11 +115,13 @@ const FIELDS = [
   text("simulated_history", "Simulated history", "Yes for the demo shop's 50 simulated past disputes"),
 ];
 
+// Each suggested question adds to the starter dashboard (which already has KPIs for
+// amount, kept and refunded) instead of repeating or replacing it.
 const PROMPTS = [
-  { label: "Where am I losing money?", prompt: "Which claim types cost me the most in refunds? Add a bar chart of money refunded by claim type and a KPI for total refunded." },
-  { label: "Autopilot vs me", prompt: "Compare disputes answered by autopilot with ones I answered myself: count, money kept and money refunded. Add a chart and a table." },
-  { label: "Does fighting pay?", prompt: "For each AI decision (fight, partial refund, refund), how much money did I keep vs refund? Add a stacked bar chart." },
-  { label: "Monthly trend", prompt: "Show money kept and refunded by month the dispute closed, as a line chart." },
+  { label: "Where am I losing money?", prompt: "Which claim types cost me the most in refunds? Add a horizontal bar chart of money refunded by claim type, highest first. Keep the existing widgets." },
+  { label: "Autopilot vs me", prompt: "Compare disputes answered by autopilot with ones I answered myself: number of disputes, money kept and money refunded. Add one table below the existing widgets and keep them." },
+  { label: "Does fighting pay?", prompt: "For each AI decision (fight, partial refund, refund), how much money did I keep vs refund? Add a stacked bar chart below the existing widgets and keep them." },
+  { label: "Monthly trend", prompt: "Show money kept and refunded by the month the dispute closed, as a line chart below the existing widgets. Keep the existing widgets." },
 ];
 
 type Loaded = { Studio: ComponentType<AgStudioProperties & { modules?: unknown[]; style?: React.CSSProperties }>; modules: unknown[]; theme: AgStudioProperties["theme"]; createAiHarness: typeof import("ag-studio").createAiHarness };
